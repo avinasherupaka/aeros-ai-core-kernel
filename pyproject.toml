@@ -1,0 +1,33 @@
+[project]
+name = "aeros-ai-core-kernel"
+version = "0.1.0"
+description = "Areos AWS-native assurance kernel MVP foundation"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7.0",
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "paho-mqtt>=2.1.0",
+  "asyncua>=1.1.5",
+  "networkx>=3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
