@@ -1,77 +1,50 @@
-# Areos AI Core Kernel (AWS-native foundation)
+# Areos AI Core Kernel (AWS-native enterprise foundation)
 
-This repository is the initial **production-shaped MVP foundation** for Areos.ai core kernel.
+Areos.ai = **Assurance, Reliability, Efficiency Operating System**.
 
-Areos positioning used across this repo:
-
-- **Areos.ai = Assurance, Reliability, Efficiency Operating System**
-- **Do not sell monitoring; sell proof.**
-- Existing systems monitor signals; Areos connects signals to validated state, product impact, and audit evidence.
-- Utility event → area → batch/product/material → quality risk → evidence → decision.
+- Areos is a **system of assurance, not a system of record**.
+- Existing systems monitor and store records; Areos connects events to validated state, product impact, and audit evidence.
 - AI assists evidence generation; humans approve quality decisions.
 
-## What is implemented in this first scaffold
+## Repository positioning
 
-- AWS-native architecture specs and learning curriculum (`specs/`, `docs/`)
-- Tenant-aware Unified Namespace (UNS) topic builder
-- Sparkplug-inspired event envelope model
-- ISA-95 / ISA-88 foundational domain models
-- OSD plant topology + humidity excursion scenario generator
-- MQTT publish/subscribe local adapters
-- OPC UA simulation scaffold with basic asyncua server
-- Local SiteWise-like abstractions (`AssetModel`, `Measurement`, `Transform`, `Metric`)
-- Local evidence object store scaffold and in-memory graph adapter
-- FastAPI skeleton endpoints:
-  - `GET /health`
-  - `GET /topology`
-  - `GET /scenario/humidity-excursion`
+- **Target runtime (MVP path):** AWS-native tenant-site cell.
+- **Local runtime:** developer sandbox, simulator, and test harness.
 
-## Local vs AWS target mapping
+## What is included
 
-| AWS target | Local MVP in this repo |
-|---|---|
-| AWS IoT Greengrass | Python edge gateway scaffold |
-| AWS IoT Core MQTT | Local Mosquitto broker |
-| AWS IoT SiteWise | Local SiteWise-like model abstraction |
-| AWS IoT Rules Engine | Local ingestion/normalizer routing scaffold |
-| Amazon S3 | `artifacts/evidence/...` local object store |
-| Amazon Neptune | `NetworkXGraphAdapter` scaffold |
-| Amazon Bedrock | Deferred; deterministic agent scaffolds later |
+### Phase 1 foundation
+- Terraform scaffolding for foundation, evidence lake, observability, tenant-site cell, GitHub OIDC.
+- Zero-trust/security/compliance/runbook documentation.
+- CI/CD workflows for Python + Terraform and OIDC-based deploy scaffolding.
 
-## Quick start
+### Phase 2 backbone
+- Terraform scaffolding for IoT Core and SiteWise model seed.
+- Greengrass component recipe skeletons.
+- Connector SDK foundation (`src/aeros/kernel/connectors`) + tests.
 
-### 1) Install dependencies
+## Quick start (local sandbox)
 
 ```bash
-python -m pip install -e .
-```
-
-### 2) Start local MQTT broker
-
-```bash
-docker compose up -d mosquitto
-```
-
-### 3) Run tests
-
-```bash
+python -m pip install -e '.[dev]'
 pytest -q
 ```
 
-### 4) Run API locally
+## Quick start (AWS dev cell)
 
-```bash
-uvicorn aeros.kernel.api.main:app --reload
-```
+1. Read `docs/runbooks/00_start_here.md`.
+2. Complete `docs/runbooks/02_aws_account_prerequisites.md`.
+3. Bootstrap via `docs/runbooks/03_aws_dev_cell_bootstrap.md`.
+4. Plan/apply safely using `docs/runbooks/04_terraform_deploy_dev.md`.
+5. Use `docs/runbooks/08_teardown_and_cost_control.md` to clean up and control spend.
 
-## Safety and intended use
+## Cost/safety notes
 
-This MVP is **read-only-first** for OT/GxP safety. It is designed as a learning and architecture accelerator and is **intended to support validation workflows**. It does not claim regulator approval and does not perform autonomous quality decisions.
+- Keep SiteWise resources disabled by default until approved.
+- Use dev-only account and plan-first workflow.
+- Prefer GitHub OIDC and AWS SSO over long-lived access keys.
 
-## Next steps
+## Compliance language
 
-1. Add edge buffering/retry/dead-letter behavior and health telemetry.
-2. Add state-of-control rule engine and event-to-impact logic.
-3. Expand evidence graph relationship semantics and provenance.
-4. Add Step Functions/EventBridge/Lambda target deployment stubs.
-5. Add Bedrock/MCP tool-based agent orchestration for evidence drafting (human-approved).
+This solution is designed to support 21 CFR Part 11 / GxP controls, validation evidence,
+auditability, and electronic-record integrity. It does not claim automatic compliance.

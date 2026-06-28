@@ -1,0 +1,12 @@
+tenant_id            = "acme-pharma"
+site_id              = "hyd-site-01"
+evidence_bucket_name = "areos-dev-acme-hyd-evidence-123456"
+topic_prefix         = "areos"
+
+# Keep disabled until SiteWise modeling validation is approved.
+enable_sitewise_resources = false
+
+tags = {
+  owner       = "platform-team"
+  cost_center = "rnd"
+}

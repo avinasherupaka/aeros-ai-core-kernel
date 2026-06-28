@@ -1,0 +1,34 @@
+name: terraform-plan
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Terraform environment folder
+        required: true
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN_DEV }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Terraform plan
+        working-directory: infra/terraform/envs/${{ inputs.environment }}
+        run: |
+          terraform init
+          terraform plan

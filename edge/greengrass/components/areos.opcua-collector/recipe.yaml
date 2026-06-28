@@ -1,0 +1,14 @@
+RecipeFormatVersion: '2020-01-25'
+ComponentName: areos.opcua-collector
+ComponentVersion: 0.1.0
+ComponentType: aws.greengrass.generic
+ComponentDescription: Read-only OPC UA collector scaffold for Areos edge gateway.
+ComponentPublisher: Areos
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Install: |
+        echo "Install dependencies for OPC UA collector"
+      Run: |
+        echo "TODO: run OPC UA collector in read-only mode"
