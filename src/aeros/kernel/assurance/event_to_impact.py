@@ -9,6 +9,25 @@ from aeros.kernel.ontology.core import OntologyContext
 from aeros.kernel.ontology.industry_packs import ScenarioDefinition
 
 
+class ImpactRationale(BaseModel):
+    entity_id: str
+    entity_type: str
+    rationale: str
+    risk_level: str = "medium"
+
+
+class ImpactPath(BaseModel):
+    event_id: str
+    path_steps: list[str] = Field(default_factory=list)
+    description: str = ""
+
+
+class EvidenceStatus(BaseModel):
+    evidence_item: str
+    status: str
+    source_hint: str = ""
+
+
 class ImpactAssessment(BaseModel):
     event_id: str
     tenant_id: str
@@ -29,6 +48,11 @@ class ImpactAssessment(BaseModel):
     confidence_score: float
     confidence_explanation: str
     impacted_entities: dict[str, Any] = Field(default_factory=dict)
+    impact_rationale: list[ImpactRationale] = Field(default_factory=list)
+    impact_path: ImpactPath | None = None
+    risk_severity_scores: dict[str, float] = Field(default_factory=dict)
+    decision_options: list[str] = Field(default_factory=list)
+    evidence_status_list: list[EvidenceStatus] = Field(default_factory=list)
 
 
 def evaluate_event_impact(
@@ -65,6 +89,71 @@ def evaluate_event_impact(
         "equipment": [event.asset_id],
     }
 
+    impact_rationale = []
+    for area_id in impacted_entities.get("areas", []):
+        impact_rationale.append(ImpactRationale(
+            entity_id=area_id,
+            entity_type="Area",
+            rationale=f"{event.metric} event at {event.site_id} impacted area {area_id}.",
+            risk_level="medium",
+        ))
+    for batch_id in impacted_entities.get("batches", []):
+        impact_rationale.append(ImpactRationale(
+            entity_id=batch_id,
+            entity_type="Batch",
+            rationale=f"Batch {batch_id} was active during the {event.metric} event.",
+            risk_level="medium",
+        ))
+    for product_id in impacted_entities.get("products", []):
+        impact_rationale.append(ImpactRationale(
+            entity_id=product_id,
+            entity_type="Product",
+            rationale=f"Product {product_id} was active during the {event.metric} event.",
+            risk_level="medium",
+        ))
+
+    path_steps = [
+        "event",
+        event.area_id or "area",
+        event.asset_id,
+        event.batch_id or "batch/product",
+        "quality_risk",
+        "evidence",
+        "decision",
+    ]
+    impact_path = ImpactPath(
+        event_id=event.event_id,
+        path_steps=path_steps,
+        description=f"Lineage from event {event.event_id} to quality decision.",
+    )
+
+    risk_severity_scores = {}
+    for risk in scenario_definition.quality_risks:
+        if "critical" in risk.lower():
+            risk_severity_scores[risk] = 0.7
+        elif "high" in risk.lower():
+            risk_severity_scores[risk] = 0.6
+        elif event.severity in ("critical", "high"):
+            risk_severity_scores[risk] = 0.5
+        else:
+            risk_severity_scores[risk] = 0.4
+
+    decision_options = []
+    if missing:
+        decision_options.append("Potential impact; QA review required before disposition.")
+    if event.severity == "critical":
+        decision_options.append("Batch hold recommended pending investigation.")
+    decision_options.append("No product impact likely pending evidence.")
+
+    evidence_status_list = []
+    for item in scenario_definition.evidence_checklist:
+        status = "present" if item in available else "missing"
+        evidence_status_list.append(EvidenceStatus(
+            evidence_item=item,
+            status=status,
+            source_hint=f"Check source systems for {item}.",
+        ))
+
     return ImpactAssessment(
         event_id=event.event_id,
         tenant_id=event.tenant_id,
@@ -85,4 +174,9 @@ def evaluate_event_impact(
         confidence_score=round(max(0.1, min(confidence, 0.99)), 2),
         confidence_explanation=" ".join(reasons),
         impacted_entities=impacted_entities,
+        impact_rationale=impact_rationale,
+        impact_path=impact_path,
+        risk_severity_scores=risk_severity_scores,
+        decision_options=decision_options,
+        evidence_status_list=evidence_status_list,
     )

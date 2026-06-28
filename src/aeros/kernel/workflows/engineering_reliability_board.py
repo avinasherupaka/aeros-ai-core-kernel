@@ -14,6 +14,9 @@ class EngineeringReliabilityBoard(BaseModel):
     chronic_assets: list[str] = Field(default_factory=list)
     recent_maintenance_context: list[str] = Field(default_factory=list)
     suggested_review_topics: list[str] = Field(default_factory=list)
+    suggested_engineering_actions: list[str] = Field(default_factory=list)
+    maintenance_effectiveness_flags: list[str] = Field(default_factory=list)
+    asset_recurrence_table: list[dict] = Field(default_factory=list)
 
 
 def build_engineering_reliability_board(
@@ -32,10 +35,36 @@ def build_engineering_reliability_board(
         topics.append("Verify whether recent maintenance was effective for post-maintenance recurrences.")
     if not topics:
         topics.append("No chronic reliability hotspots detected in the current demo dataset.")
+    
+    suggested_engineering_actions = []
+    for insight in reliability_insights:
+        suggested_engineering_actions.extend(insight.recommended_engineering_actions)
+    suggested_engineering_actions = list(dict.fromkeys(suggested_engineering_actions))
+    
+    maintenance_effectiveness_flags = []
+    for insight in reliability_insights:
+        if insight.classification.value == "post_maintenance_recurrence":
+            maintenance_effectiveness_flags.append(
+                f"Asset {insight.asset_id}: recurrence after maintenance (WO: {insight.maintenance_context or 'unknown'})"
+            )
+    
+    asset_recurrence_table = [
+        {
+            "asset_id": insight.asset_id,
+            "metric": insight.metric,
+            "recurrence_count": insight.recurrence_count,
+            "classification": insight.classification.value,
+        }
+        for insight in reliability_insights
+    ]
+    
     return EngineeringReliabilityBoard(
         site_id=site_id,
         asset_event_counts=dict(counts),
         chronic_assets=sorted(set(chronic_assets)),
         recent_maintenance_context=maintenance_context,
         suggested_review_topics=topics,
+        suggested_engineering_actions=suggested_engineering_actions,
+        maintenance_effectiveness_flags=maintenance_effectiveness_flags,
+        asset_recurrence_table=asset_recurrence_table,
     )

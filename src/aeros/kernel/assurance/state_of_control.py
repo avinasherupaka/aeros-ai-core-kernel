@@ -73,6 +73,12 @@ class ParameterAssessment(BaseModel):
     confidence: float = 1.0
     confidence_explanation: str = "All source records reported GOOD quality."
     limit_summary: dict[str, Any] = Field(default_factory=dict)
+    first_breach_timestamp: datetime | None = None
+    last_breach_timestamp: datetime | None = None
+    total_breach_minutes: float = 0.0
+    longest_continuous_breach_minutes: float = 0.0
+    evidence_references: list[str] = Field(default_factory=list)
+    confidence_breakdown: dict[str, Any] = Field(default_factory=dict)
 
 
 def _to_limit_band(raw: dict[str, float] | None) -> LimitBand | None:
@@ -201,6 +207,54 @@ def _evaluate_parameter(observations: list[ParameterObservation], limits: Parame
         severity = "info"
         outcome = AssessmentOutcome.IN_CONTROL
 
+    first_breach_timestamp = action_hits[0].timestamp if action_hits else None
+    last_breach_timestamp = action_hits[-1].timestamp if action_hits else None
+    total_breach_minutes = float(len(action_hits))
+    
+    longest_continuous_breach_minutes = 0.0
+    if action_hits:
+        current_streak = 1
+        max_streak = 1
+        for i in range(1, len(action_hits)):
+            time_diff = (action_hits[i].timestamp - action_hits[i-1].timestamp).total_seconds() / 60
+            if time_diff <= 1.0:
+                current_streak += 1
+                max_streak = max(max_streak, current_streak)
+            else:
+                current_streak = 1
+        longest_continuous_breach_minutes = float(max_streak)
+    
+    evidence_references = [
+        f"{obs.source_system}:{obs.timestamp.isoformat()}" 
+        for obs in action_hits[:3]
+    ]
+    
+    qualities = [observation.quality for observation in observations]
+    normalized_qualities = {q.upper() for q in qualities} or {"GOOD"}
+    if "BAD" in normalized_qualities:
+        source_quality = 0.45
+    elif "UNCERTAIN" in normalized_qualities or "SIMULATED" in normalized_qualities:
+        source_quality = 0.7
+    else:
+        source_quality = 1.0
+    
+    completeness = min(1.0, len(observations) / 5)
+    
+    time_window_continuity = 1.0
+    if len(observations) > 1:
+        for i in range(1, len(observations)):
+            time_diff = (observations[i].timestamp - observations[i-1].timestamp).total_seconds() / 60
+            if time_diff > 1.0:
+                time_window_continuity = 0.8
+                break
+    
+    confidence_breakdown = {
+        "source_quality": source_quality,
+        "completeness": completeness,
+        "time_window_continuity": time_window_continuity,
+        "context_present": False,
+    }
+
     return ParameterAssessment(
         parameter=limits.parameter,
         unit=limits.unit,
@@ -220,6 +274,12 @@ def _evaluate_parameter(observations: list[ParameterObservation], limits: Parame
             "action_limit": limits.action_limit.model_dump() if limits.action_limit else None,
             "critical_limit": limits.critical_limit.model_dump() if limits.critical_limit else None,
         },
+        first_breach_timestamp=first_breach_timestamp,
+        last_breach_timestamp=last_breach_timestamp,
+        total_breach_minutes=total_breach_minutes,
+        longest_continuous_breach_minutes=longest_continuous_breach_minutes,
+        evidence_references=evidence_references,
+        confidence_breakdown=confidence_breakdown,
     )
 
 
@@ -298,6 +358,9 @@ def evaluate_state_of_control(
     breach_end = breach_candidates[-1].timestamp if breach_candidates else None
     confidence = round(min(assessment.confidence for assessment in parameter_assessments), 2)
 
+    confidence_breakdown = highest.confidence_breakdown.copy()
+    confidence_breakdown["context_present"] = bool(batch_id or product_id or site_id)
+
     return StateOfControlAssessment(
         assessment_id=str(uuid.uuid4()),
         tenant_id=tenant_id,
@@ -343,6 +406,7 @@ def evaluate_state_of_control(
             "quality": min((observation.quality for observation in all_observations), default="GOOD"),
             "source_record_reference": f"{asset_id}:{highest.parameter}",
         },
+        confidence_breakdown=confidence_breakdown,
     )
 
 

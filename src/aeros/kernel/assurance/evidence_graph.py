@@ -97,6 +97,130 @@ class InMemoryEvidenceGraph:
         ]
         return EvidenceGraphSnapshot(nodes=nodes, edges=edges)
 
+    def get_event_evidence(self, event_id: str) -> list[EvidenceNode]:
+        result = []
+        for source, target, _key, data in self.graph.edges(keys=True, data=True):
+            if source == event_id and data.get("edge_type") == EvidenceEdgeType.EVIDENCED_BY.value:
+                node_data = self.graph.nodes[target]
+                result.append(EvidenceNode(
+                    node_id=target,
+                    node_type=EvidenceNodeType(node_data["node_type"]),
+                    label=node_data["label"],
+                    attributes={k: v for k, v in node_data.items() if k not in {"node_type", "label"}},
+                ))
+        return result
+
+    def get_impacted_entities(self, event_id: str) -> list[EvidenceNode]:
+        impact_edge_types = {EvidenceEdgeType.IMPACTS.value, EvidenceEdgeType.ACTIVE_DURING.value}
+        result = []
+        for source, target, _key, data in self.graph.edges(keys=True, data=True):
+            if source == event_id and data.get("edge_type") in impact_edge_types:
+                node_data = self.graph.nodes[target]
+                result.append(EvidenceNode(
+                    node_id=target,
+                    node_type=EvidenceNodeType(node_data["node_type"]),
+                    label=node_data["label"],
+                    attributes={k: v for k, v in node_data.items() if k not in {"node_type", "label"}},
+                ))
+        return result
+
+    def get_risks(self, event_id: str) -> list[EvidenceNode]:
+        result = []
+        for source, target, _key, data in self.graph.edges(keys=True, data=True):
+            if source == event_id and data.get("edge_type") == EvidenceEdgeType.HAS_RISK.value:
+                node_data = self.graph.nodes[target]
+                result.append(EvidenceNode(
+                    node_id=target,
+                    node_type=EvidenceNodeType(node_data["node_type"]),
+                    label=node_data["label"],
+                    attributes={k: v for k, v in node_data.items() if k not in {"node_type", "label"}},
+                ))
+        return result
+
+    def get_missing_evidence(self, event_id: str, required_evidence: list[str]) -> list[str]:
+        present_labels = {node.label for node in self.get_event_evidence(event_id)}
+        return [item for item in required_evidence if item not in present_labels]
+
+    def get_lineage_path(self, event_id: str) -> list[dict]:
+        path = []
+        if event_id not in self.graph.nodes:
+            return path
+        path.append({"node_id": event_id, "node_type": "Event", "label": self.graph.nodes[event_id].get("label", event_id)})
+        for source, target, _key, data in self.graph.edges(keys=True, data=True):
+            if source == event_id:
+                node_data = self.graph.nodes[target]
+                path.append({"node_id": target, "node_type": node_data.get("node_type", ""), "label": node_data.get("label", target), "edge_type": data.get("edge_type", "")})
+        return path
+
+    def to_neptune_like_triples(self) -> list[dict]:
+        triples = []
+        for source, target, _key, data in self.graph.edges(keys=True, data=True):
+            triples.append({
+                "subject": source,
+                "predicate": data.get("edge_type", "RELATED_TO"),
+                "object": target,
+                "subject_type": self.graph.nodes[source].get("node_type", ""),
+                "object_type": self.graph.nodes[target].get("node_type", ""),
+            })
+        return triples
+
+
+class EvidenceGraphQuery:
+    def __init__(self, snapshot: EvidenceGraphSnapshot) -> None:
+        self._nodes = {node.node_id: node for node in snapshot.nodes}
+        self._edges = snapshot.edges
+
+    def get_neighbors(self, node_id: str, edge_type: EvidenceEdgeType | None = None) -> list[EvidenceNode]:
+        targets = [
+            edge.target_id for edge in self._edges
+            if edge.source_id == node_id and (edge_type is None or edge.edge_type == edge_type)
+        ]
+        return [self._nodes[t] for t in targets if t in self._nodes]
+
+    def get_event_evidence(self, event_id: str) -> list[EvidenceNode]:
+        return self.get_neighbors(event_id, EvidenceEdgeType.EVIDENCED_BY)
+
+    def get_impacted_entities(self, event_id: str) -> list[EvidenceNode]:
+        return self.get_neighbors(event_id, EvidenceEdgeType.IMPACTS) + self.get_neighbors(event_id, EvidenceEdgeType.ACTIVE_DURING)
+
+    def get_risks(self, event_id: str) -> list[EvidenceNode]:
+        return self.get_neighbors(event_id, EvidenceEdgeType.HAS_RISK)
+
+    def get_missing_evidence(self, event_id: str, required_evidence: list[str]) -> list[str]:
+        present = {node.label for node in self.get_event_evidence(event_id)}
+        return [item for item in required_evidence if item not in present]
+
+    def get_lineage_path(self, event_id: str) -> list[dict]:
+        path = []
+        if event_id not in self._nodes:
+            return path
+        node = self._nodes[event_id]
+        path.append({"node_id": event_id, "node_type": node.node_type.value, "label": node.label})
+        for edge in self._edges:
+            if edge.source_id == event_id:
+                target = self._nodes.get(edge.target_id)
+                if target:
+                    path.append({"node_id": target.node_id, "node_type": target.node_type.value, "label": target.label, "edge_type": edge.edge_type.value})
+        return path
+
+    def to_neptune_like_triples(self) -> list[dict]:
+        result = []
+        for edge in self._edges:
+            src = self._nodes.get(edge.source_id)
+            tgt = self._nodes.get(edge.target_id)
+            result.append({
+                "subject": edge.source_id,
+                "predicate": edge.edge_type.value,
+                "object": edge.target_id,
+                "subject_type": src.node_type.value if src else "",
+                "object_type": tgt.node_type.value if tgt else "",
+            })
+        return result
+
+
+def query_snapshot(snapshot: EvidenceGraphSnapshot) -> EvidenceGraphQuery:
+    return EvidenceGraphQuery(snapshot)
+
 
 def build_evidence_graph(
     event: AssuranceEvent,

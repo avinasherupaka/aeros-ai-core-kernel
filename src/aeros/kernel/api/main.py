@@ -193,3 +193,93 @@ def plant_head_assurance() -> dict:
 def validation_audit_room() -> dict:
     views = workflow_views()
     return views["validation_audit_room"].model_dump(mode="json")
+
+
+@app.get("/assurance/events/{event_id}/full-package")
+def assurance_event_full_package(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    return {
+        "event_id": event_id,
+        "scenario_id": bundle.scenario_id,
+        "assessment": bundle.assessment.model_dump(mode="json"),
+        "impact": bundle.impact.model_dump(mode="json"),
+        "reliability_insight": bundle.reliability_insight.model_dump(mode="json"),
+        "evidence_graph_summary": {
+            "node_count": len(bundle.evidence_graph.nodes),
+            "edge_count": len(bundle.evidence_graph.edges),
+            "node_types": list({node.node_type.value for node in bundle.evidence_graph.nodes}),
+        },
+        "dossier": bundle.dossier.model_dump(mode="json"),
+    }
+
+
+@app.post("/dossiers/events/{event_id}/generate-package")
+def generate_event_full_package(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    dossier = build_gmp_dossier(
+        event=bundle.event,
+        assessment=bundle.assessment,
+        impact_assessment=bundle.impact,
+        evidence_graph=bundle.evidence_graph,
+        reliability_insight=bundle.reliability_insight,
+    )
+    demo_event_bundles.cache_clear()
+    return {"package_completeness_score": dossier.package_completeness_score, "dossier": dossier.model_dump(mode="json")}
+
+
+@app.get("/dossiers/events/{event_id}/manifest")
+def get_event_dossier_manifest(event_id: str) -> dict:
+    import json
+    from pathlib import Path
+    
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    manifest_path = bundle.dossier.manifest_path
+    if not manifest_path or not Path(manifest_path).exists():
+        return {"message": "Manifest not yet generated. POST to /dossiers/events/{event_id}/generate-package first.", "event_id": event_id}
+    return json.loads(Path(manifest_path).read_text())
+
+
+@app.get("/apqr/{site_id}/demo-section")
+def get_apqr_demo_section(site_id: str) -> dict:
+    views = workflow_views()
+    apqr = views["apqr"]
+    return apqr.model_dump(mode="json")
+
+
+@app.post("/apqr/{site_id}/generate-demo-section")
+def generate_apqr_demo_section(site_id: str) -> dict:
+    from aeros.kernel.dossiers.apqr import build_apqr_section
+    
+    bundles = list(demo_event_bundles().values())
+    events = [b.event for b in bundles]
+    impacts = [b.impact for b in bundles]
+    insights = [b.reliability_insight for b in bundles]
+    section = build_apqr_section(
+        site_id=site_id,
+        events=events,
+        impacts=impacts,
+        reliability_insights=insights,
+        period="2026-H1",
+    )
+    return section.model_dump(mode="json")
+
+
+@app.get("/workflows/deviation-drafts/{event_id}")
+def get_deviation_draft(event_id: str) -> dict:
+    from aeros.kernel.workflows.deviation_workbench import create_deviation_draft
+    
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    draft = create_deviation_draft(bundle.event, bundle.impact, bundle.dossier)
+    return draft.model_dump(mode="json")
