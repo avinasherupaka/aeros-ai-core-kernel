@@ -1,36 +1,45 @@
 """
 Areos Kernel API.
 
-FastAPI application exposing the local MVP endpoints.
-
-Endpoints:
-  GET /health                          — liveness check
-  GET /topology                        — OSD plant topology
-  GET /scenario/humidity-excursion     — raw humidity excursion scenario
-  GET /state-of-control/humidity-excursion — state-of-control assessment
+FastAPI application exposing the local sandbox/test-harness endpoints and the
+Phase 3–5 AWS-native product scaffolding.
 
 Run:
     uvicorn aeros.kernel.api.main:app --reload
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
+from aeros.kernel.api.demo_data import (
+    demo_event_bundles,
+    get_demo_event_bundle,
+    list_demo_events,
+    scenario_library,
+    workflow_views,
+)
 from aeros.kernel.assurance.state_of_control import (
     build_assurance_events_from_assessment,
     run_humidity_state_of_control,
 )
+from aeros.kernel.config.messages import ASSURANCE_POSITIONING, PROOF_POSITIONING
+from aeros.kernel.dossiers.gmp_dossier import build_gmp_dossier
 from aeros.kernel.simulation.humidity_excursion import generate_humidity_excursion
 from aeros.kernel.simulation.plant_topology import build_osd_topology
 from aeros.kernel.storage.local_sitewise import LocalSiteWiseRegistry, MeasurementReading
 
-app = FastAPI(title="Areos Kernel API", version="0.1.0")
+app = FastAPI(title="Areos Kernel API", version="0.3.0")
 
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "aeros-kernel"}
+    return {
+        "status": "ok",
+        "service": "aeros-kernel",
+        "positioning": ASSURANCE_POSITIONING,
+        "runtime_mode": "local sandbox/test harness",
+    }
 
 
 @app.get("/topology")
@@ -85,5 +94,102 @@ def state_of_control_humidity_excursion() -> dict:
 
     return {
         "assessment": assessment.model_dump(mode="json"),
-        "assurance_events": [e.model_dump(mode="json") for e in assurance_events],
+        "assurance_events": [event.model_dump(mode="json") for event in assurance_events],
     }
+
+
+@app.get("/ontology/industry-packs")
+def industry_packs() -> dict:
+    from aeros.kernel.ontology.industry_packs import list_industry_packs
+
+    return {
+        "message": PROOF_POSITIONING,
+        "industry_packs": list_industry_packs(),
+    }
+
+
+@app.get("/scenario-library")
+def get_scenario_library() -> dict:
+    return {"scenarios": scenario_library()}
+
+
+@app.get("/assurance/demo-events")
+def assurance_demo_events() -> dict:
+    return {"events": list_demo_events()}
+
+
+@app.get("/assurance/events/{event_id}/state-of-control")
+def assurance_event_state(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    return {"scenario_id": bundle.scenario_id, "assessment": bundle.assessment.model_dump(mode="json")}
+
+
+@app.get("/assurance/events/{event_id}/impact")
+def assurance_event_impact(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    return {"scenario_id": bundle.scenario_id, "impact": bundle.impact.model_dump(mode="json")}
+
+
+@app.get("/assurance/events/{event_id}/evidence-graph")
+def assurance_event_evidence_graph(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    return {"scenario_id": bundle.scenario_id, "graph": bundle.evidence_graph.model_dump(mode="json")}
+
+
+@app.get("/dossiers/events/{event_id}")
+def get_event_dossier(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    return bundle.dossier.sections
+
+
+@app.post("/dossiers/events/{event_id}/generate")
+def generate_event_dossier(event_id: str) -> dict:
+    try:
+        bundle = get_demo_event_bundle(event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
+    dossier = build_gmp_dossier(
+        event=bundle.event,
+        assessment=bundle.assessment,
+        impact_assessment=bundle.impact,
+        evidence_graph=bundle.evidence_graph,
+        reliability_insight=bundle.reliability_insight,
+    )
+    demo_event_bundles.cache_clear()
+    return dossier.model_dump(mode="json")
+
+
+@app.get("/workflows/deviation-queue")
+def deviation_queue() -> dict:
+    views = workflow_views()
+    return views["deviation_queue"].model_dump(mode="json")
+
+
+@app.get("/workflows/engineering-reliability-board")
+def engineering_reliability_board() -> dict:
+    views = workflow_views()
+    return views["engineering_reliability_board"].model_dump(mode="json")
+
+
+@app.get("/workflows/plant-head-assurance")
+def plant_head_assurance() -> dict:
+    views = workflow_views()
+    return views["plant_head_assurance"].model_dump(mode="json")
+
+
+@app.get("/workflows/validation-audit-room")
+def validation_audit_room() -> dict:
+    views = workflow_views()
+    return views["validation_audit_room"].model_dump(mode="json")

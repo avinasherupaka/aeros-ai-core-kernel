@@ -5,9 +5,9 @@ These are the normalized output types that flow from the ingestion/assurance
 layer into evidence storage, APQR workflows, and deviation assessments.
 
 Key types:
-  CanonicalEvent           — generic normalized measurement event
-  AssuranceEvent           — typed assurance event (STATE_OF_CONTROL_BREACH, etc.)
-  StateOfControlAssessment — result of running the state-of-control engine
+  CanonicalEvent            — generic normalized measurement event
+  AssuranceEvent            — typed assurance event (STATE_OF_CONTROL_BREACH, etc.)
+  StateOfControlAssessment  — result of running the state-of-control engine
 
 AWS equivalent:
   Lambda/Step Functions produce these structured outputs, stored in S3/DynamoDB
@@ -40,11 +40,21 @@ class AssessmentOutcome(str, Enum):
 
 class CanonicalEvent(BaseModel):
     """Generic normalized event — wraps any raw source payload."""
+
+    event_id: str | None = None
     tenant_id: str
     site_id: str
     event_type: str
     source_system: str
-    payload: dict
+    source_protocol: str | None = None
+    connector_id: str | None = None
+    trace_id: str | None = None
+    source_timestamp: datetime | None = None
+    ingestion_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    quality: str = "GOOD"
+    source_record_reference: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 class AssuranceEvent(BaseModel):
@@ -53,6 +63,7 @@ class AssuranceEvent(BaseModel):
     Carries full tenant/site/asset lineage so evidence records can be traced back
     to source.
     """
+
     event_id: str
     tenant_id: str
     site_id: str
@@ -66,7 +77,18 @@ class AssuranceEvent(BaseModel):
     unit: str | None = None
     batch_id: str | None = None
     product_id: str | None = None
-    payload: dict = Field(default_factory=dict)
+    room_id: str | None = None
+    material_lot_id: str | None = None
+    operation: str | None = None
+    phase: str | None = None
+    source_protocol: str | None = None
+    connector_id: str | None = None
+    quality: str = "GOOD"
+    severity: str | None = None
+    status: str | None = None
+    risk_ids: list[str] = Field(default_factory=list)
+    required_evidence: list[str] = Field(default_factory=list)
+    payload: dict[str, Any] = Field(default_factory=dict)
     trace_id: str | None = None
 
 
@@ -75,12 +97,12 @@ class StateOfControlAssessment(BaseModel):
     Result of evaluating a stream of measurements against alert/action limits.
 
     A BREACH_CONFIRMED outcome with excursion_duration_minutes > 0 is the
-    trigger for a Dendrix evidence dossier, deviation assessment, and
-    APQR entry.
+    trigger for an Areos evidence dossier, deviation assessment, and APQR entry.
 
     Source lineage is preserved so QA can trace back to the original
     BMS/EMS tag and UNS topic.
     """
+
     assessment_id: str
     tenant_id: str
     site_id: str
@@ -91,11 +113,22 @@ class StateOfControlAssessment(BaseModel):
     excursion_duration_minutes: float
     breach_start: datetime | None = None
     breach_end: datetime | None = None
-    action_limit: float
-    alert_limit: float
+    action_limit: float | None = None
+    alert_limit: float | None = None
+    critical_limit: float | None = None
+    validated_range: dict[str, float | None] | None = None
     peak_value: float
     batch_id: str | None = None
     product_id: str | None = None
-    source_lineage: dict = Field(default_factory=dict)
+    room_id: str | None = None
+    material_lot_id: str | None = None
+    operation: str | None = None
+    phase: str | None = None
+    severity: str | None = None
+    confidence: float | None = None
+    confidence_explanation: str | None = None
+    scenario_id: str | None = None
+    duration_window_minutes: int | None = None
+    parameter_assessments: list[dict[str, Any]] = Field(default_factory=list)
+    source_lineage: dict[str, Any] = Field(default_factory=dict)
     assessed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
