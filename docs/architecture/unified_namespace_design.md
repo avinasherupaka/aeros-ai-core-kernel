@@ -1,6 +1,11 @@
 # Unified Namespace Design
 
-Topic pattern:
+Tenant-aware UNS topic pattern:
+
 `areos/{tenant}/{site}/{area}/{work_center_or_room}/{asset}/{data_domain}/{metric}`
 
-Segments are normalized to lowercase snake-like tokens for stable subscriptions and data lineage.
+Guidance:
+- Keep tenant and site in every topic path.
+- Normalize segments to lowercase/safe tokens.
+- Scope IoT policies to tenant/site prefixes.
+- Preserve lineage fields in every emitted record for assurance/evidence trails.

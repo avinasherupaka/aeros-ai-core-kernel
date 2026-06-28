@@ -1,0 +1,14 @@
+RecipeFormatVersion: '2020-01-25'
+ComponentName: areos.mqtt-publisher
+ComponentVersion: 0.1.0
+ComponentType: aws.greengrass.generic
+ComponentDescription: MQTT publisher scaffold for tenant/site UNS topics.
+ComponentPublisher: Areos
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Install: |
+        echo "Install dependencies for MQTT publisher"
+      Run: |
+        echo "TODO: publish normalized records to AWS IoT Core"

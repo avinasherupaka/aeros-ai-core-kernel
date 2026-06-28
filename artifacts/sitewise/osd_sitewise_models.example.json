@@ -1,0 +1,29 @@
+{
+  "asset_models": [
+    {
+      "name": "osd_site",
+      "children": ["osd_manufacturing_area"]
+    },
+    {
+      "name": "osd_manufacturing_area",
+      "children": ["compression_room"]
+    },
+    {
+      "name": "compression_room",
+      "children": ["ahu", "tablet_press"],
+      "measurements": [
+        "relative_humidity",
+        "temperature",
+        "differential_pressure",
+        "ahu_status",
+        "tablet_press_state"
+      ],
+      "transforms": [
+        "humidity_excursion_duration_minutes"
+      ],
+      "metrics": [
+        "humidity_excursion_count_24h"
+      ]
+    }
+  ]
+}

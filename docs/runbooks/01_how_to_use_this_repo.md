@@ -1,5 +1,8 @@
 # 01 How to Use This Repository
 
+> For the AWS-native Phase 1–2 path and week/day schedule, start with
+> `docs/runbooks/00_start_here.md`.
+
 ## Purpose
 
 This repository is designed to serve two simultaneous goals:
