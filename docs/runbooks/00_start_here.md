@@ -42,9 +42,9 @@
 - Day 4: Publish tenant/site-scoped MQTT test payloads.
 - Day 5: Validate CloudWatch routing.
 
-### Week 6 (Greengrass)
+### Week 6 (Greengrass V2)
 - Day 1–2: Review component recipes.
-- Day 3: Map local collector to Greengrass artifact/deploy model.
+- Day 3: Map local collector to Greengrass V2 component/deployment model.
 - Day 4: Validate read-only connector mode.
 - Day 5: Document deployment versioning.
 

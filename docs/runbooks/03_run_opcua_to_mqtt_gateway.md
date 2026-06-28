@@ -1,6 +1,6 @@
 # 03 Run OPC UA to MQTT Gateway
 
-This runbook demonstrates the Greengrass-style edge gateway pattern: read tags from
+This runbook demonstrates the Greengrass V2 edge gateway pattern: read tags from
 an OPC UA server and publish them to the MQTT UNS broker.
 
 ## AWS equivalent
@@ -8,8 +8,8 @@ an OPC UA server and publish them to the MQTT UNS broker.
 ```
 On-premises:
   BMS OPC UA server (e.g. Siemens S7, Rockwell, Kepware)
-    → Greengrass OPC UA collector component
-      → Greengrass Stream Manager
+    → Greengrass V2 OPC UA collector component
+      → Greengrass V2 local buffering component
         → AWS IoT Core MQTT
 
 Local MVP:

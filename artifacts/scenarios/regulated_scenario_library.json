@@ -1,0 +1,951 @@
+{
+  "positioning": {
+    "message": "Do not sell monitoring; sell proof.",
+    "system_role": "Existing systems monitor signals; Areos connects signals to validated state, product impact, and audit evidence.",
+    "assurance_chain": "Utility event \u2192 area \u2192 batch/product/material \u2192 quality risk \u2192 evidence \u2192 decision.",
+    "governance": "AI assists evidence generation; humans approve quality decisions. Read-only-first for OT/GxP safety."
+  },
+  "industry_packs": [
+    {
+      "pack_id": "pharma_osd",
+      "name": "Pharma OSD Industry Pack",
+      "description": "Read-only-first scenarios for oral solid dosage assurance, proof, and dossier generation.",
+      "scenarios": [
+        {
+          "scenario_id": "pharma_osd_humidity_excursion_compression",
+          "name": "Humidity excursion during compression",
+          "industry": "pharma_osd",
+          "process_area": "Compression",
+          "description": "Humidity excursion during tablet compression with batch impact and audit-ready evidence requirements.",
+          "source_systems": [
+            "BMS",
+            "MES",
+            "QMS",
+            "CMMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA",
+            "FILE"
+          ],
+          "affected_parameters": [
+            "relative_humidity"
+          ],
+          "sample_limits": {
+            "relative_humidity": {
+              "unit": "%RH",
+              "validated_range": {
+                "max": 50.0
+              },
+              "alert_limit": {
+                "max": 55.0
+              },
+              "action_limit": {
+                "max": 60.0
+              },
+              "critical_limit": {
+                "max": 65.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "compression_suite"
+            ],
+            "batches": [
+              "BATCH-OSD-2026-001"
+            ],
+            "products": [
+              "hygrostatin_10mg_tablet"
+            ],
+            "materials": [
+              "granulation_lot_001"
+            ]
+          },
+          "quality_risks": [
+            "blend flow degradation",
+            "tablet hardness variability"
+          ],
+          "safety_risks": [
+            "operator intervention during excursion"
+          ],
+          "compliance_risks": [
+            "environmental control evidence gap"
+          ],
+          "evidence_checklist": [
+            "BMS trend",
+            "MES batch record",
+            "AHU alarm log",
+            "maintenance work order",
+            "QA review"
+          ],
+          "suggested_personas": [
+            "QA reviewer",
+            "Production supervisor",
+            "Engineering reliability lead"
+          ],
+          "likely_source_records": [
+            "alarm record",
+            "batch step record",
+            "work order"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "relative_humidity",
+              "breach_value": 63.0,
+              "duration_minutes": 22,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "acme_pharma",
+            "site_id": "hyd_site_01",
+            "area_id": "osd_manufacturing",
+            "room_id": "compression_room_1",
+            "equipment_id": "tablet_press_01",
+            "utility_system_id": "ahu_03",
+            "batch_id": "BATCH-OSD-2026-001",
+            "product_id": "hygrostatin_10mg_tablet",
+            "material_lot_id": "granulation_lot_001",
+            "operation": "compression",
+            "phase": "main_compression"
+          }
+        },
+        {
+          "scenario_id": "pharma_osd_pressure_cascade_failure_dispensing",
+          "name": "Differential pressure cascade failure",
+          "industry": "pharma_osd",
+          "process_area": "Dispensing",
+          "description": "Dispensing pressure cascade failure that can propagate area contamination and evidence requirements.",
+          "source_systems": [
+            "BMS",
+            "EMS",
+            "MES"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA"
+          ],
+          "affected_parameters": [
+            "differential_pressure"
+          ],
+          "sample_limits": {
+            "differential_pressure": {
+              "unit": "Pa",
+              "validated_range": {
+                "min": 12.0
+              },
+              "alert_limit": {
+                "min": 10.0
+              },
+              "action_limit": {
+                "min": 8.0
+              },
+              "critical_limit": {
+                "min": 5.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "dispensing_suite"
+            ],
+            "batches": [
+              "BATCH-OSD-2026-014"
+            ],
+            "products": [
+              "apirox_5mg_capsule"
+            ]
+          },
+          "quality_risks": [
+            "cross-contamination risk",
+            "operator gowning breach risk"
+          ],
+          "safety_risks": [
+            "room re-entry control issue"
+          ],
+          "compliance_risks": [
+            "pressure cascade audit evidence gap"
+          ],
+          "evidence_checklist": [
+            "pressure trend",
+            "door access log",
+            "EMS intervention log",
+            "batch hold decision"
+          ],
+          "suggested_personas": [
+            "QA reviewer",
+            "Micro lead",
+            "Facilities engineer"
+          ],
+          "likely_source_records": [
+            "environmental alarm",
+            "access log"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "differential_pressure",
+              "breach_value": 4.5,
+              "duration_minutes": 7,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "acme_pharma",
+            "site_id": "hyd_site_01",
+            "area_id": "dispensing",
+            "room_id": "dispensing_airlock",
+            "equipment_id": "dispensing_booth_01",
+            "utility_system_id": "ahu_dispensing_01",
+            "batch_id": "BATCH-OSD-2026-014",
+            "product_id": "apirox_5mg_capsule",
+            "operation": "dispensing",
+            "phase": "material_dispense"
+          }
+        },
+        {
+          "scenario_id": "pharma_osd_compressed_air_dew_point_excursion",
+          "name": "Compressed-air dew point excursion",
+          "industry": "pharma_osd",
+          "process_area": "Compression",
+          "description": "Compressed-air dew point excursion affecting tooling and product-contact utilities.",
+          "source_systems": [
+            "Utility historian",
+            "BMS",
+            "CMMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "FILE"
+          ],
+          "affected_parameters": [
+            "compressed_air_dew_point"
+          ],
+          "sample_limits": {
+            "compressed_air_dew_point": {
+              "unit": "\u00b0C",
+              "validated_range": {
+                "max": -20.0
+              },
+              "alert_limit": {
+                "max": -15.0
+              },
+              "action_limit": {
+                "max": -10.0
+              },
+              "critical_limit": {
+                "max": -5.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "compression_suite"
+            ],
+            "batches": [
+              "BATCH-OSD-2026-021"
+            ],
+            "products": [
+              "hygrostatin_20mg_tablet"
+            ]
+          },
+          "quality_risks": [
+            "product-contact utility moisture risk"
+          ],
+          "safety_risks": [],
+          "compliance_risks": [
+            "utility qualification evidence gap"
+          ],
+          "evidence_checklist": [
+            "dew point trend",
+            "compressor maintenance record",
+            "batch usage log"
+          ],
+          "suggested_personas": [
+            "Utilities engineer",
+            "QA reviewer"
+          ],
+          "likely_source_records": [
+            "historian trend",
+            "maintenance log"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "compressed_air_dew_point",
+              "breach_value": -8.0,
+              "duration_minutes": 5,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "acme_pharma",
+            "site_id": "hyd_site_01",
+            "area_id": "osd_manufacturing",
+            "room_id": "compression_room_2",
+            "equipment_id": "tablet_press_02",
+            "utility_system_id": "compressed_air_header_01",
+            "batch_id": "BATCH-OSD-2026-021",
+            "product_id": "hygrostatin_20mg_tablet",
+            "operation": "compression",
+            "phase": "tooling_air_supply"
+          }
+        }
+      ]
+    },
+    {
+      "pack_id": "api_chemical",
+      "name": "API / Chemical Industry Pack",
+      "description": "Reactor, utility, and material-sequence proof scenarios for API and chemical manufacturing.",
+      "scenarios": [
+        {
+          "scenario_id": "api_reactor_temperature_excursion",
+          "name": "Reactor temperature excursion",
+          "industry": "api_chemical",
+          "process_area": "Reaction",
+          "description": "Reactor temperature excursion with batch hold and deviation implications.",
+          "source_systems": [
+            "SCADA",
+            "MES",
+            "Historian",
+            "CMMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA",
+            "FILE"
+          ],
+          "affected_parameters": [
+            "reactor_temperature"
+          ],
+          "sample_limits": {
+            "reactor_temperature": {
+              "unit": "\u00b0C",
+              "validated_range": {
+                "min": 68.0,
+                "max": 72.0
+              },
+              "alert_limit": {
+                "max": 74.0
+              },
+              "action_limit": {
+                "max": 76.0
+              },
+              "critical_limit": {
+                "max": 80.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "reactor_train_01"
+            ],
+            "batches": [
+              "API-BATCH-7741"
+            ],
+            "products": [
+              "intermediate_alpha"
+            ]
+          },
+          "quality_risks": [
+            "reaction impurity formation",
+            "yield loss"
+          ],
+          "safety_risks": [
+            "thermal runaway precursor"
+          ],
+          "compliance_risks": [
+            "batch release justification gap"
+          ],
+          "evidence_checklist": [
+            "SCADA trend",
+            "reactor batch log",
+            "agitator maintenance",
+            "QA deviation review"
+          ],
+          "suggested_personas": [
+            "Process engineer",
+            "QA reviewer",
+            "Manufacturing science lead"
+          ],
+          "likely_source_records": [
+            "batch historian",
+            "work order"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "reactor_temperature",
+              "breach_value": 77.5,
+              "duration_minutes": 12,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "api_enterprise",
+            "site_id": "vizag_site_02",
+            "area_id": "reactor_train_01",
+            "room_id": "reactor_bay_1",
+            "equipment_id": "reactor_101",
+            "utility_system_id": "steam_header_02",
+            "batch_id": "API-BATCH-7741",
+            "product_id": "intermediate_alpha",
+            "material_lot_id": "raw_lot_8821",
+            "operation": "reaction",
+            "phase": "heat_up"
+          }
+        },
+        {
+          "scenario_id": "api_nitrogen_blanketing_pressure_drop",
+          "name": "Nitrogen blanketing pressure drop",
+          "industry": "api_chemical",
+          "process_area": "Solvent handling",
+          "description": "Nitrogen blanketing pressure drop creating oxidation and safety concerns.",
+          "source_systems": [
+            "SCADA",
+            "Utility historian",
+            "CMMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA"
+          ],
+          "affected_parameters": [
+            "nitrogen_blanketing_pressure"
+          ],
+          "sample_limits": {
+            "nitrogen_blanketing_pressure": {
+              "unit": "bar",
+              "validated_range": {
+                "min": 1.4
+              },
+              "alert_limit": {
+                "min": 1.2
+              },
+              "action_limit": {
+                "min": 1.0
+              },
+              "critical_limit": {
+                "min": 0.8
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "solvent_storage"
+            ],
+            "batches": [
+              "API-BATCH-7749"
+            ],
+            "materials": [
+              "solvent_tank_lot_11"
+            ]
+          },
+          "quality_risks": [
+            "oxidation risk",
+            "solvent quality drift"
+          ],
+          "safety_risks": [
+            "flammability control degradation"
+          ],
+          "compliance_risks": [
+            "inerting evidence gap"
+          ],
+          "evidence_checklist": [
+            "pressure trend",
+            "tank transfer record",
+            "nitrogen skid maintenance"
+          ],
+          "suggested_personas": [
+            "Utilities engineer",
+            "Safety lead",
+            "QA reviewer"
+          ],
+          "likely_source_records": [
+            "alarm log",
+            "tank transfer log"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "nitrogen_blanketing_pressure",
+              "breach_value": 0.9,
+              "duration_minutes": 9,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "api_enterprise",
+            "site_id": "vizag_site_02",
+            "area_id": "solvent_storage",
+            "room_id": "tank_farm_a",
+            "equipment_id": "solvent_tank_11",
+            "utility_system_id": "nitrogen_skid_01",
+            "batch_id": "API-BATCH-7749",
+            "material_lot_id": "solvent_tank_lot_11",
+            "operation": "blanketing",
+            "phase": "storage_hold"
+          }
+        }
+      ]
+    },
+    {
+      "pack_id": "biotech_biologics",
+      "name": "Biotech / Biologics Industry Pack",
+      "description": "Bioreactor, WFI, cold-room, and fill-finish proof scenarios for biologics operations.",
+      "scenarios": [
+        {
+          "scenario_id": "biotech_bioreactor_ph_excursion",
+          "name": "Bioreactor pH excursion",
+          "industry": "biotech_biologics",
+          "process_area": "Cell culture",
+          "description": "Bioreactor pH excursion with process state and product quality implications.",
+          "source_systems": [
+            "SCADA",
+            "MES",
+            "LIMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA"
+          ],
+          "affected_parameters": [
+            "bioreactor_ph"
+          ],
+          "sample_limits": {
+            "bioreactor_ph": {
+              "unit": "pH",
+              "validated_range": {
+                "min": 6.9,
+                "max": 7.2
+              },
+              "alert_limit": {
+                "max": 7.3
+              },
+              "action_limit": {
+                "max": 7.4
+              },
+              "critical_limit": {
+                "max": 7.5
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "cell_culture_suite"
+            ],
+            "batches": [
+              "BIO-BATCH-204"
+            ],
+            "products": [
+              "mab_gamma"
+            ]
+          },
+          "quality_risks": [
+            "cell viability drift",
+            "glycosylation profile shift"
+          ],
+          "safety_risks": [],
+          "compliance_risks": [
+            "process excursion evidence gap"
+          ],
+          "evidence_checklist": [
+            "SCADA trend",
+            "MES batch record",
+            "LIMS in-process sample",
+            "operator intervention log"
+          ],
+          "suggested_personas": [
+            "MSAT lead",
+            "QA reviewer",
+            "Bioprocess engineer"
+          ],
+          "likely_source_records": [
+            "batch record",
+            "IPQC result"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "bioreactor_ph",
+              "breach_value": 7.45,
+              "duration_minutes": 15,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "bio_enterprise",
+            "site_id": "blr_bio_01",
+            "area_id": "cell_culture_suite",
+            "room_id": "reactor_room_2",
+            "equipment_id": "bioreactor_202",
+            "utility_system_id": "co2_control_loop_02",
+            "batch_id": "BIO-BATCH-204",
+            "product_id": "mab_gamma",
+            "operation": "cell_culture",
+            "phase": "growth_phase"
+          }
+        },
+        {
+          "scenario_id": "biotech_wfi_conductivity_trend",
+          "name": "WFI conductivity trend",
+          "industry": "biotech_biologics",
+          "process_area": "Utility loop",
+          "description": "WFI conductivity trend indicating potential utility quality drift.",
+          "source_systems": [
+            "Utility historian",
+            "SCADA",
+            "LIMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "FILE"
+          ],
+          "affected_parameters": [
+            "wfi_conductivity"
+          ],
+          "sample_limits": {
+            "wfi_conductivity": {
+              "unit": "\u00b5S/cm",
+              "validated_range": {
+                "max": 1.1
+              },
+              "alert_limit": {
+                "max": 1.2
+              },
+              "action_limit": {
+                "max": 1.3
+              },
+              "critical_limit": {
+                "max": 1.5
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "utility_loop"
+            ],
+            "products": [
+              "mab_gamma"
+            ]
+          },
+          "quality_risks": [
+            "WFI utility quality risk"
+          ],
+          "safety_risks": [],
+          "compliance_risks": [
+            "water system trend justification gap"
+          ],
+          "evidence_checklist": [
+            "online conductivity trend",
+            "TOC result",
+            "loop sanitization record"
+          ],
+          "suggested_personas": [
+            "Utilities engineer",
+            "Micro lead",
+            "QA reviewer"
+          ],
+          "likely_source_records": [
+            "utility trend",
+            "lab result"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "wfi_conductivity",
+              "breach_value": 1.34,
+              "duration_minutes": 20,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "bio_enterprise",
+            "site_id": "blr_bio_01",
+            "area_id": "utility_loop",
+            "room_id": "wfi_generation_skid",
+            "equipment_id": "wfi_loop_01",
+            "utility_system_id": "wfi_loop_01",
+            "product_id": "mab_gamma",
+            "operation": "utility_generation",
+            "phase": "distribution"
+          }
+        },
+        {
+          "scenario_id": "biotech_cold_room_temperature_excursion",
+          "name": "Cold-room temperature excursion",
+          "industry": "biotech_biologics",
+          "process_area": "Cold storage",
+          "description": "Cold-room temperature excursion affecting intermediates and fill-finish staging.",
+          "source_systems": [
+            "BMS",
+            "MES",
+            "QMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA"
+          ],
+          "affected_parameters": [
+            "cold_room_temperature"
+          ],
+          "sample_limits": {
+            "cold_room_temperature": {
+              "unit": "\u00b0C",
+              "validated_range": {
+                "min": 2.0,
+                "max": 8.0
+              },
+              "alert_limit": {
+                "max": 8.5
+              },
+              "action_limit": {
+                "max": 9.0
+              },
+              "critical_limit": {
+                "max": 10.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "cold_storage"
+            ],
+            "batches": [
+              "BIO-BATCH-205"
+            ],
+            "products": [
+              "mab_gamma"
+            ]
+          },
+          "quality_risks": [
+            "cold-chain excursion",
+            "intermediate potency drift"
+          ],
+          "safety_risks": [],
+          "compliance_risks": [
+            "storage condition evidence gap"
+          ],
+          "evidence_checklist": [
+            "temperature trend",
+            "door access log",
+            "material staging list",
+            "QA hold decision"
+          ],
+          "suggested_personas": [
+            "Warehouse lead",
+            "QA reviewer",
+            "Bioprocess engineer"
+          ],
+          "likely_source_records": [
+            "temperature alarm",
+            "staging list"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "cold_room_temperature",
+              "breach_value": 9.4,
+              "duration_minutes": 18,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "bio_enterprise",
+            "site_id": "blr_bio_01",
+            "area_id": "cold_storage",
+            "room_id": "cold_room_01",
+            "equipment_id": "cold_room_01",
+            "utility_system_id": "refrigeration_loop_01",
+            "batch_id": "BIO-BATCH-205",
+            "product_id": "mab_gamma",
+            "material_lot_id": "bulk_hold_lot_42",
+            "operation": "storage",
+            "phase": "hold"
+          }
+        }
+      ]
+    },
+    {
+      "pack_id": "advanced_regulated_manufacturing",
+      "name": "Advanced Food / Nutraceutical / Specialty Chemical Pack",
+      "description": "Evidence-driven scenarios spanning food, nutraceutical, specialty chemical, and advanced materials operations.",
+      "scenarios": [
+        {
+          "scenario_id": "food_allergen_cross_contact_risk",
+          "name": "Allergen/cross-contact risk event",
+          "industry": "advanced_regulated_manufacturing",
+          "process_area": "Blending and packaging",
+          "description": "Allergen cross-contact risk event linked to line clearance, cleaning proof, and release review.",
+          "source_systems": [
+            "MES",
+            "QMS",
+            "CMMS",
+            "Packaging line controller"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "FILE"
+          ],
+          "affected_parameters": [
+            "line_clearance_status"
+          ],
+          "sample_limits": {
+            "line_clearance_status": {
+              "unit": "state",
+              "validated_range": {
+                "min": 1.0
+              },
+              "alert_limit": {
+                "min": 1.0
+              },
+              "action_limit": {
+                "min": 1.0
+              },
+              "critical_limit": {
+                "min": 1.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "blend_pack_suite"
+            ],
+            "products": [
+              "protein_bar_vanilla"
+            ]
+          },
+          "quality_risks": [
+            "allergen cross-contact",
+            "packaging mix-up"
+          ],
+          "safety_risks": [
+            "consumer allergen exposure"
+          ],
+          "compliance_risks": [
+            "line clearance evidence gap"
+          ],
+          "evidence_checklist": [
+            "cleaning verification",
+            "line clearance checklist",
+            "packaging reconciliation",
+            "QA approval"
+          ],
+          "suggested_personas": [
+            "QA reviewer",
+            "Packaging supervisor",
+            "Sanitation lead"
+          ],
+          "likely_source_records": [
+            "cleaning record",
+            "line clearance form"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "line_clearance_status",
+              "breach_value": 0.0,
+              "duration_minutes": 1,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "food_enterprise",
+            "site_id": "pnq_food_01",
+            "area_id": "blend_pack_suite",
+            "room_id": "line_7",
+            "equipment_id": "packager_07",
+            "utility_system_id": "cip_skid_07",
+            "product_id": "protein_bar_vanilla",
+            "operation": "packaging",
+            "phase": "line_clearance"
+          }
+        },
+        {
+          "scenario_id": "advanced_materials_dry_room_humidity_excursion",
+          "name": "Dry-room humidity excursion",
+          "industry": "advanced_regulated_manufacturing",
+          "process_area": "Dry room processing",
+          "description": "Dry-room humidity excursion impacting moisture-sensitive advanced material processing.",
+          "source_systems": [
+            "BMS",
+            "MES",
+            "QMS"
+          ],
+          "source_protocols": [
+            "MQTT",
+            "OPC_UA"
+          ],
+          "affected_parameters": [
+            "dry_room_humidity"
+          ],
+          "sample_limits": {
+            "dry_room_humidity": {
+              "unit": "%RH",
+              "validated_range": {
+                "max": 1.0
+              },
+              "alert_limit": {
+                "max": 1.2
+              },
+              "action_limit": {
+                "max": 1.5
+              },
+              "critical_limit": {
+                "max": 2.0
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "areas": [
+              "dry_room"
+            ],
+            "batches": [
+              "ADV-BATCH-991"
+            ],
+            "products": [
+              "lithium_cathode_powder"
+            ]
+          },
+          "quality_risks": [
+            "moisture uptake",
+            "powder rework risk"
+          ],
+          "safety_risks": [],
+          "compliance_risks": [
+            "environmental control evidence gap"
+          ],
+          "evidence_checklist": [
+            "dry-room trend",
+            "glove box access log",
+            "material exposure log",
+            "QA review"
+          ],
+          "suggested_personas": [
+            "Process engineer",
+            "QA reviewer",
+            "Facilities engineer"
+          ],
+          "likely_source_records": [
+            "trend record",
+            "exposure log"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "dry_room_humidity",
+              "breach_value": 1.7,
+              "duration_minutes": 11,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "advanced_enterprise",
+            "site_id": "hyd_advanced_01",
+            "area_id": "dry_room",
+            "room_id": "dry_room_a",
+            "equipment_id": "powder_mixer_03",
+            "utility_system_id": "dehumidifier_01",
+            "batch_id": "ADV-BATCH-991",
+            "product_id": "lithium_cathode_powder",
+            "material_lot_id": "nickel_powder_lot_55",
+            "operation": "powder_processing",
+            "phase": "dry_mix"
+          }
+        }
+      ]
+    }
+  ]
+}

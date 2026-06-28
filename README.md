@@ -3,12 +3,16 @@
 Areos.ai = **Assurance, Reliability, Efficiency Operating System**.
 
 - Areos is a **system of assurance, not a system of record**.
-- Existing systems monitor and store records; Areos connects events to validated state, product impact, and audit evidence.
+- **Do not sell monitoring; sell proof.**
+- Existing systems monitor signals and store records; Areos connects signals to validated state, product impact, and audit evidence.
+- Utility event → area → batch/product/material → quality risk → evidence → decision.
+- Human-approved, audit-ready evidence packs.
+- Read-only-first for OT/GxP safety.
 - AI assists evidence generation; humans approve quality decisions.
 
 ## Repository positioning
 
-- **Target runtime (MVP path):** AWS-native tenant-site cell.
+- **Target runtime (product):** AWS-native tenant-site cell.
 - **Local runtime:** developer sandbox, simulator, and test harness.
 
 ## What is included
@@ -20,31 +24,41 @@ Areos.ai = **Assurance, Reliability, Efficiency Operating System**.
 
 ### Phase 2 backbone
 - Terraform scaffolding for IoT Core and SiteWise model seed.
-- Greengrass component recipe skeletons.
+- Greengrass V2 component recipe skeletons.
 - Connector SDK foundation (`src/aeros/kernel/connectors`) + tests.
+
+### Phase 3–5 product batch
+- Universal regulated-operations ontology + industry packs.
+- Assurance engines for canonical events, state-of-control, event-to-impact, recurrence, and evidence graph.
+- GMP dossier, APQR, deviation, plant-head, validation/audit workflow scaffolding.
+- FastAPI endpoints backed by demo/sample data that run locally without AWS credentials.
 
 ## Quick start (local sandbox)
 
 ```bash
 python -m pip install -e '.[dev]'
 pytest -q
+uvicorn aeros.kernel.api.main:app --reload
 ```
 
 ## Quick start (AWS dev cell)
 
 1. Read `docs/runbooks/00_start_here.md`.
-2. Complete `docs/runbooks/02_aws_account_prerequisites.md`.
-3. Bootstrap via `docs/runbooks/03_aws_dev_cell_bootstrap.md`.
-4. Plan/apply safely using `docs/runbooks/04_terraform_deploy_dev.md`.
-5. Use `docs/runbooks/08_teardown_and_cost_control.md` to clean up and control spend.
+2. Review `docs/architecture/greengrass_v2_edge_gateway.md`.
+3. Complete `docs/runbooks/02_aws_account_prerequisites.md`.
+4. Bootstrap via `docs/runbooks/03_aws_dev_cell_bootstrap.md`.
+5. Plan/apply safely using `docs/runbooks/04_terraform_deploy_dev.md`.
+6. Use `docs/runbooks/08_teardown_and_cost_control.md` to clean up and control spend.
 
-## Cost/safety notes
+## Learning + build playbook
 
-- Keep SiteWise resources disabled by default until approved.
-- Use dev-only account and plan-first workflow.
-- Prefer GitHub OIDC and AWS SSO over long-lived access keys.
+- `docs/learning/phase_3_ontology_learning_map.md`
+- `docs/learning/phase_4_assurance_engines_learning_map.md`
+- `docs/learning/phase_5_control_plane_learning_map.md`
+- `docs/runbooks/09_phase_3_to_5_demo.md`
+- `specs/008_enterprise_32_week_roadmap.md`
 
 ## Compliance language
 
 This solution is designed to support 21 CFR Part 11 / GxP controls, validation evidence,
-auditability, and electronic-record integrity. It does not claim automatic compliance.
+auditability, electronic-record integrity, and customer CSV. It does not claim automatic compliance.
