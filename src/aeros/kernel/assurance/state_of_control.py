@@ -34,6 +34,10 @@ from aeros.kernel.models.canonical import (
 from aeros.kernel.ontology.industry_packs import ScenarioDefinition
 from aeros.kernel.storage.local_sitewise import MeasurementReading
 
+_BREACH_CONTINUITY_THRESHOLD_MINUTES = 1.0
+_MIN_OBSERVATIONS_FOR_FULL_COMPLETENESS = 5
+_TIME_WINDOW_CONTINUITY_PENALTY = 0.8
+
 
 class LimitBand(BaseModel):
     min_value: float | None = None
@@ -217,7 +221,7 @@ def _evaluate_parameter(observations: list[ParameterObservation], limits: Parame
         max_streak = 1
         for i in range(1, len(action_hits)):
             time_diff = (action_hits[i].timestamp - action_hits[i-1].timestamp).total_seconds() / 60
-            if time_diff <= 1.0:
+            if time_diff <= _BREACH_CONTINUITY_THRESHOLD_MINUTES:
                 current_streak += 1
                 max_streak = max(max_streak, current_streak)
             else:
@@ -238,14 +242,14 @@ def _evaluate_parameter(observations: list[ParameterObservation], limits: Parame
     else:
         source_quality = 1.0
     
-    completeness = min(1.0, len(observations) / 5)
+    completeness = min(1.0, len(observations) / _MIN_OBSERVATIONS_FOR_FULL_COMPLETENESS)
     
     time_window_continuity = 1.0
     if len(observations) > 1:
         for i in range(1, len(observations)):
             time_diff = (observations[i].timestamp - observations[i-1].timestamp).total_seconds() / 60
-            if time_diff > 1.0:
-                time_window_continuity = 0.8
+            if time_diff > _BREACH_CONTINUITY_THRESHOLD_MINUTES:
+                time_window_continuity = _TIME_WINDOW_CONTINUITY_PENALTY
                 break
     
     confidence_breakdown = {

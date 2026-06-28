@@ -6,6 +6,12 @@ from aeros.kernel.assurance.event_to_impact import ImpactAssessment
 from aeros.kernel.assurance.reliability_intelligence import ReliabilityInsight
 from aeros.kernel.models.canonical import AssuranceEvent
 
+_HIGH_RISK_EVENT_WEIGHT = 2
+_RISK_FACTOR_DIVISOR = 3
+_CRITICAL_RISK_THRESHOLD = 0.7
+_HIGH_RISK_THRESHOLD = 0.5
+_MEDIUM_RISK_THRESHOLD = 0.3
+
 
 class PlantHeadAssuranceView(BaseModel):
     site_id: str
@@ -35,14 +41,14 @@ def build_plant_head_assurance_view(
     ]
     
     total_events = max(len(events), 1)
-    site_risk_score = min(1.0, (len(high_risk_events) * 2 + batch_release_risk_count + len(recurrence_hotspots)) / (total_events * 3))
+    site_risk_score = min(1.0, (len(high_risk_events) * _HIGH_RISK_EVENT_WEIGHT + batch_release_risk_count + len(recurrence_hotspots)) / (total_events * _RISK_FACTOR_DIVISOR))
     site_risk_score = round(site_risk_score, 2)
     
-    if site_risk_score > 0.7:
+    if site_risk_score > _CRITICAL_RISK_THRESHOLD:
         site_risk_tier = "critical"
-    elif site_risk_score > 0.5:
+    elif site_risk_score > _HIGH_RISK_THRESHOLD:
         site_risk_tier = "high"
-    elif site_risk_score > 0.3:
+    elif site_risk_score > _MEDIUM_RISK_THRESHOLD:
         site_risk_tier = "medium"
     else:
         site_risk_tier = "low"

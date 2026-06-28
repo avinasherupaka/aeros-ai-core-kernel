@@ -12,6 +12,10 @@ from aeros.kernel.assurance.reliability_intelligence import ReliabilityInsight
 from aeros.kernel.models.canonical import AssuranceEvent
 
 
+def _safe_path_segment(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.:-]", "_", value)
+
+
 class APQRSection(BaseModel):
     site_id: str
     utility_environmental_events: list[str] = Field(default_factory=list)
@@ -106,7 +110,7 @@ def build_apqr_section(
     json_path = ""
     if output_root:
         root = Path(output_root).resolve()
-        apqr_dir = root / site_id / "apqr" / period
+        apqr_dir = root / _safe_path_segment(site_id) / "apqr" / _safe_path_segment(period)
         apqr_dir.mkdir(parents=True, exist_ok=True)
         markdown_path = str(apqr_dir / "apqr_section.md")
         json_path = str(apqr_dir / "apqr_section.json")

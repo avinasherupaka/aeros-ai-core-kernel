@@ -8,6 +8,11 @@ from aeros.kernel.models.canonical import AssuranceEvent
 from aeros.kernel.ontology.core import OntologyContext
 from aeros.kernel.ontology.industry_packs import ScenarioDefinition
 
+_RISK_SCORE_CRITICAL_KEYWORD = 0.7
+_RISK_SCORE_HIGH_KEYWORD = 0.6
+_RISK_SCORE_HIGH_SEVERITY_EVENT = 0.5
+_RISK_SCORE_DEFAULT = 0.4
+
 
 class ImpactRationale(BaseModel):
     entity_id: str
@@ -130,13 +135,13 @@ def evaluate_event_impact(
     risk_severity_scores = {}
     for risk in scenario_definition.quality_risks:
         if "critical" in risk.lower():
-            risk_severity_scores[risk] = 0.7
+            risk_severity_scores[risk] = _RISK_SCORE_CRITICAL_KEYWORD
         elif "high" in risk.lower():
-            risk_severity_scores[risk] = 0.6
+            risk_severity_scores[risk] = _RISK_SCORE_HIGH_KEYWORD
         elif event.severity in ("critical", "high"):
-            risk_severity_scores[risk] = 0.5
+            risk_severity_scores[risk] = _RISK_SCORE_HIGH_SEVERITY_EVENT
         else:
-            risk_severity_scores[risk] = 0.4
+            risk_severity_scores[risk] = _RISK_SCORE_DEFAULT
 
     decision_options = []
     if missing:

@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 from aeros.kernel.assurance.event_to_impact import ImpactAssessment
 from aeros.kernel.dossiers.gmp_dossier import GMPDossier
 
+_AUDIT_READY_COMPLETENESS_THRESHOLD = 0.9
+
 
 class ValidationAuditRoomView(BaseModel):
     site_id: str
@@ -48,7 +50,7 @@ def build_validation_audit_room(
     for dossier in dossiers:
         comp_score = completeness[dossier.event_id]
         impact = impact_index[dossier.event_id]
-        if comp_score >= 0.9 and not impact.missing_evidence:
+        if comp_score >= _AUDIT_READY_COMPLETENESS_THRESHOLD and not impact.missing_evidence:
             audit_ready_status[dossier.event_id] = "audit_ready"
         else:
             audit_ready_status[dossier.event_id] = "not_audit_ready"

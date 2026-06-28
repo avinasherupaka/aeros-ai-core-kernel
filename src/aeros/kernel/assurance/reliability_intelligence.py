@@ -16,6 +16,11 @@ class RecurrenceClassification(str, Enum):
     SEASONAL_OR_SHIFT_PATTERN_SUSPECTED = "seasonal_or_shift_pattern_suspected"
 
 
+_BASE_SIMILARITY_SCORE = 0.7
+_PRODUCT_MATCH_BONUS = 0.1
+_AREA_MATCH_BONUS = 0.1
+
+
 class MaintenanceRecord(BaseModel):
     work_order_id: str
     asset_id: str
@@ -88,11 +93,11 @@ def analyze_recurrence(
 
     similarity_score = 0.0
     if similar_events:
-        similarity_score = 0.7
+        similarity_score = _BASE_SIMILARITY_SCORE
         if any(e.product_id == anchor_event.product_id for e in similar_events):
-            similarity_score += 0.1
+            similarity_score += _PRODUCT_MATCH_BONUS
         if any(e.area_id == anchor_event.area_id for e in similar_events):
-            similarity_score += 0.1
+            similarity_score += _AREA_MATCH_BONUS
         similarity_score = round(min(1.0, similarity_score), 2)
 
     recommended_engineering_actions = []
