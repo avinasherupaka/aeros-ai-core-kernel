@@ -1,0 +1,82 @@
+{
+  "status": "implemented_for_local_end_to_end_testing",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Cloud foundation and governance",
+      "status": "implemented",
+      "code_location": ["infra/terraform"],
+      "docs_location": ["docs/architecture", "docs/compliance", "docs/security", "docs/runbooks"],
+      "tests_location": [".github/workflows/ci.yml"],
+      "run_demo_command": "bash scripts/terraform_validate.sh",
+      "aws_native_target_mapping": "AWS tenant-site cell foundation with zero-trust baseline and OIDC deployment path.",
+      "known_gaps": ["Apply remains operator-controlled and plan-first."]
+    },
+    {
+      "phase": 2,
+      "name": "Industrial ingestion backbone",
+      "status": "implemented_and_scaffolded",
+      "code_location": ["src/aeros/kernel/ingestion", "edge/greengrass"],
+      "docs_location": ["docs/architecture/greengrass_v2_edge_gateway.md", "docs/runbooks"],
+      "tests_location": ["tests/test_uns.py", "tests/test_local_sitewise.py"],
+      "run_demo_command": "bash scripts/run_mqtt_demo.sh",
+      "aws_native_target_mapping": "AWS IoT Core + Greengrass V2 + SiteWise model path.",
+      "known_gaps": ["Live OT connector deployment not included in local harness."]
+    },
+    {
+      "phase": 3,
+      "name": "Ontology and industry packs",
+      "status": "implemented",
+      "code_location": ["src/aeros/kernel/ontology"],
+      "docs_location": ["docs/ontology"],
+      "tests_location": ["tests/test_ontology_core.py", "tests/test_industry_packs.py"],
+      "run_demo_command": "python - <<'PY'\nfrom aeros.kernel.ontology.industry_packs import list_industry_packs\nprint(list_industry_packs())\nPY",
+      "aws_native_target_mapping": "Tenant/site scenario and ontology configuration.",
+      "known_gaps": ["More customer-specific packs still future."]
+    },
+    {
+      "phase": 4,
+      "name": "Assurance engines and evidence graph",
+      "status": "implemented",
+      "code_location": ["src/aeros/kernel/assurance"],
+      "docs_location": ["docs/architecture", "docs/learning"],
+      "tests_location": ["tests/test_state_of_control_hardened.py", "tests/test_event_to_impact_hardened.py", "tests/test_evidence_graph_hardened.py", "tests/test_reliability_hardened.py"],
+      "run_demo_command": "pytest -q tests/test_state_of_control_hardened.py tests/test_event_to_impact_hardened.py tests/test_evidence_graph_hardened.py tests/test_reliability_hardened.py",
+      "aws_native_target_mapping": "Analytics, workflow, and evidence services.",
+      "known_gaps": ["Enterprise scale benchmarking still future."]
+    },
+    {
+      "phase": 5,
+      "name": "Dossiers, control plane, and workflows",
+      "status": "implemented",
+      "code_location": ["src/aeros/kernel/dossiers", "src/aeros/kernel/workflows", "src/aeros/kernel/api"],
+      "docs_location": ["docs/runbooks/10_evidence_package_and_workflow_demo.md"],
+      "tests_location": ["tests/test_dossier_full_package.py", "tests/test_workflow_hardened.py", "tests/test_apqr_hardened.py"],
+      "run_demo_command": "uvicorn aeros.kernel.api.main:app --reload",
+      "aws_native_target_mapping": "Control-plane APIs and evidence package services.",
+      "known_gaps": ["External approval/workflow integrations still future."]
+    },
+    {
+      "phase": 6,
+      "name": "Connector ecosystem",
+      "status": "implemented",
+      "code_location": ["src/aeros/kernel/connectors"],
+      "docs_location": ["docs/connectors", "docs/architecture/connector_ecosystem_strategy.md"],
+      "tests_location": ["tests/test_connector_sdk_hardened.py", "tests/test_historian_connector_pack.py", "tests/test_qms_mes_connector_pack.py", "tests/test_cmms_erp_lims_connector_pack.py", "tests/test_connector_validation_pack.py"],
+      "run_demo_command": "pytest -q tests/test_connector_sdk_hardened.py tests/test_historian_connector_pack.py tests/test_qms_mes_connector_pack.py tests/test_cmms_erp_lims_connector_pack.py tests/test_connector_validation_pack.py",
+      "aws_native_target_mapping": "Connector services/components running in tenant/site cells and edge pathways.",
+      "known_gaps": ["Only simulated datasets are included; live enterprise integrations are future work."]
+    },
+    {
+      "phase": 7,
+      "name": "Agents and enterprise hardening",
+      "status": "implemented_and_scaffolded",
+      "code_location": ["src/aeros/kernel/agents", "src/aeros/kernel/mcp"],
+      "docs_location": ["docs/architecture/bedrock_and_mcp_agent_architecture.md", "docs/enterprise"],
+      "tests_location": ["tests/test_agent_tools.py", "tests/test_qa_agent.py", "tests/test_engineering_agent.py", "tests/test_plant_head_agent.py", "tests/test_validation_agent.py", "tests/test_agent_orchestrator.py"],
+      "run_demo_command": "pytest -q tests/test_agent_tools.py tests/test_qa_agent.py tests/test_engineering_agent.py tests/test_plant_head_agent.py tests/test_validation_agent.py tests/test_agent_orchestrator.py",
+      "aws_native_target_mapping": "Future Bedrock + MCP orchestration with human-approved quality workflows.",
+      "known_gaps": ["MCP and Bedrock runtime are scaffolded only; local deterministic mode is the supported path today."]
+    }
+  ]
+}
