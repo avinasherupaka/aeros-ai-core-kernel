@@ -1,0 +1,12 @@
+[
+  {
+    "result_id": "LIMS-4001",
+    "sample_id": "S-100",
+    "batch_id": "BATCH-OSD-2026-001",
+    "parameter": "assay",
+    "result": 99.1,
+    "unit": "% label claim",
+    "sampled_at": "2026-06-01T12:00:00+00:00",
+    "status": "approved"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "timeline_id": "MES-1",
+    "batch_id": "BATCH-OSD-2026-001",
+    "product_id": "TAB-500MG",
+    "phase": "compression",
+    "operation": "tablet_press_run",
+    "timestamp": "2026-06-01T10:05:00+00:00",
+    "status": "in_progress"
+  },
+  {
+    "timeline_id": "MES-2",
+    "batch_id": "BATCH-OSD-2026-001",
+    "product_id": "TAB-500MG",
+    "phase": "compression",
+    "operation": "line_clearance",
+    "timestamp": "2026-06-01T09:40:00+00:00",
+    "status": "complete"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "deviation_id": "DEV-1001",
+    "record_type": "deviation",
+    "status": "open",
+    "batch_id": "BATCH-OSD-2026-001",
+    "site_id": "hyd-01",
+    "opened_at": "2026-06-01T11:00:00+00:00",
+    "summary": "Humidity excursion investigation opened in QMS."
+  },
+  {
+    "deviation_id": "CAPA-2201",
+    "record_type": "capa",
+    "status": "draft",
+    "batch_id": "BATCH-OSD-2026-001",
+    "site_id": "hyd-01",
+    "opened_at": "2026-06-01T14:00:00+00:00",
+    "summary": "Proposed HVAC corrective action under review."
+  }
+]

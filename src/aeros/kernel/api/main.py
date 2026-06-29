@@ -8,10 +8,14 @@ Run:
     uvicorn aeros.kernel.api.main:app --reload
 """
 
+import json
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
+from aeros.kernel.agents import AgentOrchestrator, AgentToolRegistry
 from aeros.kernel.api.demo_data import (
     demo_event_bundles,
     get_demo_event_bundle,
@@ -23,6 +27,7 @@ from aeros.kernel.assurance.state_of_control import (
     build_assurance_events_from_assessment,
     run_humidity_state_of_control,
 )
+from aeros.kernel.connectors import ConnectorReplayRequest, default_connector_registry
 from aeros.kernel.config.messages import ASSURANCE_POSITIONING, PROOF_POSITIONING
 from aeros.kernel.dossiers.gmp_dossier import build_gmp_dossier
 from aeros.kernel.simulation.humidity_excursion import generate_humidity_excursion
@@ -30,6 +35,22 @@ from aeros.kernel.simulation.plant_topology import build_osd_topology
 from aeros.kernel.storage.local_sitewise import LocalSiteWiseRegistry, MeasurementReading
 
 app = FastAPI(title="Areos Kernel API", version="0.3.0")
+connector_registry = default_connector_registry()
+agent_tools = AgentToolRegistry()
+agent_orchestrator = AgentOrchestrator()
+
+
+class ConnectorReplayBody(BaseModel):
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    max_records: int | None = None
+    window_label: str = ""
+
+
+class AgentAskBody(BaseModel):
+    question: str
+    persona: str | None = None
+    event_id: str | None = None
 
 
 @app.get("/health")
@@ -276,10 +297,65 @@ def generate_apqr_demo_section(site_id: str) -> dict:
 @app.get("/workflows/deviation-drafts/{event_id}")
 def get_deviation_draft(event_id: str) -> dict:
     from aeros.kernel.workflows.deviation_workbench import create_deviation_draft
-    
+
     try:
         bundle = get_demo_event_bundle(event_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}") from exc
     draft = create_deviation_draft(bundle.event, bundle.impact, bundle.dossier)
     return draft.model_dump(mode="json")
+
+
+@app.get("/connectors/registry")
+def get_connector_registry() -> dict:
+    return {"connectors": connector_registry.list_connectors()}
+
+
+@app.get("/connectors/health")
+def get_connector_health() -> dict:
+    return {"health": connector_registry.health()}
+
+
+@app.post("/connectors/{connector_id}/validate")
+def validate_connector(connector_id: str) -> dict:
+    try:
+        return connector_registry.validate(connector_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown connector_id: {connector_id}") from exc
+
+
+@app.post("/connectors/{connector_id}/replay")
+def replay_connector(connector_id: str, body: ConnectorReplayBody) -> dict:
+    try:
+        return connector_registry.replay(connector_id, ConnectorReplayRequest.model_validate(body.model_dump()))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown connector_id: {connector_id}") from exc
+
+
+@app.get("/connectors/{connector_id}/validation-pack")
+def get_connector_validation_pack(connector_id: str) -> dict:
+    try:
+        return connector_registry.generate_validation_pack(connector_id, Path(__file__).resolve().parents[4] / "artifacts" / "connectors" / "validation")
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown connector_id: {connector_id}") from exc
+
+
+@app.get("/agents/tools")
+def list_agent_tools() -> dict:
+    return {"tools": agent_tools.list_tools()}
+
+
+@app.post("/agents/ask")
+def ask_agent(body: AgentAskBody) -> dict:
+    return agent_orchestrator.ask(body.question, persona=body.persona, event_id=body.event_id)
+
+
+@app.get("/enterprise/readiness")
+def get_enterprise_readiness() -> dict:
+    readiness_path = Path(__file__).resolve().parents[4] / "artifacts" / "release_readiness" / "phase_1_to_7_completeness.json"
+    payload = json.loads(readiness_path.read_text()) if readiness_path.exists() else {"phases": [], "status": "pending"}
+    return {
+        "release_readiness": payload,
+        "connector_health": connector_registry.health(),
+        "agent_runtime": "local deterministic harness",
+    }

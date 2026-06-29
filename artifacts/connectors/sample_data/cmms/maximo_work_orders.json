@@ -1,0 +1,9 @@
+[
+  {
+    "work_order_id": "WO-9001",
+    "asset_id": "AHU-01",
+    "completed_at": "2026-05-28T10:00:00+00:00",
+    "status": "complete",
+    "summary": "Replace humidity control valve and calibrate sensor."
+  }
+]

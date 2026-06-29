@@ -41,6 +41,12 @@ pytest -q
 uvicorn aeros.kernel.api.main:app --reload
 ```
 
+## Full system guide
+
+Start with the consolidated end-to-end guide:
+
+- `docs/runbooks/00_FULL_SYSTEM_TEST_AND_DEMO_GUIDE.md`
+
 ## Quick start (AWS dev cell)
 
 1. Read `docs/runbooks/00_start_here.md`.
