@@ -6,6 +6,12 @@ from aeros.kernel.assurance.event_to_impact import ImpactAssessment
 from aeros.kernel.assurance.reliability_intelligence import ReliabilityInsight
 from aeros.kernel.models.canonical import AssuranceEvent
 
+_HIGH_RISK_EVENT_WEIGHT = 2
+_RISK_FACTOR_DIVISOR = 3
+_CRITICAL_RISK_THRESHOLD = 0.7
+_HIGH_RISK_THRESHOLD = 0.5
+_MEDIUM_RISK_THRESHOLD = 0.3
+
 
 class PlantHeadAssuranceView(BaseModel):
     site_id: str
@@ -13,6 +19,9 @@ class PlantHeadAssuranceView(BaseModel):
     batch_release_risk_count: int = 0
     recurrence_hotspots: list[str] = Field(default_factory=list)
     action_priorities: list[str] = Field(default_factory=list)
+    site_risk_score: float = 0.0
+    site_risk_tier: str = ""
+    executive_summary: str = ""
 
 
 def build_plant_head_assurance_view(
@@ -30,10 +39,33 @@ def build_plant_head_assurance_view(
         "Prioritize chronic recurrence hotspots for engineering review.",
         "Use Areos to connect events to validated state, product impact, and audit evidence; do not replace MES/QMS/SCADA systems of record.",
     ]
+    
+    total_events = max(len(events), 1)
+    site_risk_score = min(1.0, (len(high_risk_events) * _HIGH_RISK_EVENT_WEIGHT + batch_release_risk_count + len(recurrence_hotspots)) / (total_events * _RISK_FACTOR_DIVISOR))
+    site_risk_score = round(site_risk_score, 2)
+    
+    if site_risk_score > _CRITICAL_RISK_THRESHOLD:
+        site_risk_tier = "critical"
+    elif site_risk_score > _HIGH_RISK_THRESHOLD:
+        site_risk_tier = "high"
+    elif site_risk_score > _MEDIUM_RISK_THRESHOLD:
+        site_risk_tier = "medium"
+    else:
+        site_risk_tier = "low"
+    
+    executive_summary = (
+        f"Site {site_id} has {len(events)} events with {len(high_risk_events)} high-risk events. "
+        f"{batch_release_risk_count} batch(es) at risk. {len(recurrence_hotspots)} asset(s) show recurrence. "
+        f"Site risk tier: {site_risk_tier}. Action: review high-risk events and chronic recurrence assets."
+    )
+    
     return PlantHeadAssuranceView(
         site_id=site_id,
         open_high_risk_events=high_risk_events,
         batch_release_risk_count=batch_release_risk_count,
         recurrence_hotspots=sorted(set(recurrence_hotspots)),
         action_priorities=action_priorities,
+        site_risk_score=site_risk_score,
+        site_risk_tier=site_risk_tier,
+        executive_summary=executive_summary,
     )

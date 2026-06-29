@@ -13,6 +13,12 @@ class RecurrenceClassification(str, Enum):
     REPEATED_EVENT = "repeated_event"
     CHRONIC_RECURRENCE = "chronic_recurrence"
     POST_MAINTENANCE_RECURRENCE = "post_maintenance_recurrence"
+    SEASONAL_OR_SHIFT_PATTERN_SUSPECTED = "seasonal_or_shift_pattern_suspected"
+
+
+_BASE_SIMILARITY_SCORE = 0.7
+_PRODUCT_MATCH_BONUS = 0.1
+_AREA_MATCH_BONUS = 0.1
 
 
 class MaintenanceRecord(BaseModel):
@@ -32,6 +38,9 @@ class ReliabilityInsight(BaseModel):
     classification: RecurrenceClassification
     maintenance_context: str | None = None
     summary: str
+    similarity_score: float = 0.0
+    recommended_engineering_actions: list[str] = Field(default_factory=list)
+    recurrence_by_asset_metric: dict[str, int] = Field(default_factory=dict)
 
 
 def analyze_recurrence(
@@ -79,7 +88,51 @@ def analyze_recurrence(
         RecurrenceClassification.REPEATED_EVENT: "Repeated event detected on the same site/asset/parameter.",
         RecurrenceClassification.CHRONIC_RECURRENCE: "Chronic recurrence detected; asset should be reviewed by engineering reliability board.",
         RecurrenceClassification.POST_MAINTENANCE_RECURRENCE: "Event recurred after recent maintenance and should be reviewed for maintenance effectiveness.",
+        RecurrenceClassification.SEASONAL_OR_SHIFT_PATTERN_SUSPECTED: "Seasonal or shift pattern suspected.",
     }[classification]
+
+    similarity_score = 0.0
+    if similar_events:
+        similarity_score = _BASE_SIMILARITY_SCORE
+        if any(e.product_id == anchor_event.product_id for e in similar_events):
+            similarity_score += _PRODUCT_MATCH_BONUS
+        if any(e.area_id == anchor_event.area_id for e in similar_events):
+            similarity_score += _AREA_MATCH_BONUS
+        similarity_score = round(min(1.0, similarity_score), 2)
+
+    recommended_engineering_actions = []
+    if classification == RecurrenceClassification.FIRST_OCCURRENCE:
+        recommended_engineering_actions = [
+            "Monitor for recurrence over the next 30 days.",
+            "Confirm source-system data quality and completeness.",
+        ]
+    elif classification == RecurrenceClassification.REPEATED_EVENT:
+        recommended_engineering_actions = [
+            "Investigate root cause of repeat events on this asset.",
+            "Check maintenance schedule and preventive actions.",
+            "Review BMS/EMS alarm settings.",
+        ]
+    elif classification == RecurrenceClassification.CHRONIC_RECURRENCE:
+        recommended_engineering_actions = [
+            "Escalate to engineering reliability board.",
+            "Consider asset replacement or major overhaul.",
+            "Root-cause analysis mandatory before CAPA closure.",
+            "Review design adequacy of HVAC/utility system.",
+        ]
+    elif classification == RecurrenceClassification.POST_MAINTENANCE_RECURRENCE:
+        recommended_engineering_actions = [
+            "Assess maintenance effectiveness; work order may not have addressed root cause.",
+            "Check if correct maintenance procedure was followed.",
+            "Consider additional engineering controls.",
+        ]
+    elif classification == RecurrenceClassification.SEASONAL_OR_SHIFT_PATTERN_SUSPECTED:
+        recommended_engineering_actions = [
+            "Analyze event timestamps for seasonal or shift patterns.",
+            "Review HVAC seasonal setpoints.",
+            "Consider environmental monitoring trending.",
+        ]
+
+    recurrence_by_asset_metric = {f"{anchor_event.asset_id}::{anchor_event.metric}": recurrence_count}
 
     return ReliabilityInsight(
         event_id=anchor_event.event_id,
@@ -91,4 +144,7 @@ def analyze_recurrence(
         classification=classification,
         maintenance_context=maintenance_context,
         summary=summary,
+        similarity_score=similarity_score,
+        recommended_engineering_actions=recommended_engineering_actions,
+        recurrence_by_asset_metric=recurrence_by_asset_metric,
     )

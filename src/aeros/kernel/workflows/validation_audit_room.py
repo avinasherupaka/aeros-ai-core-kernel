@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 from aeros.kernel.assurance.event_to_impact import ImpactAssessment
 from aeros.kernel.dossiers.gmp_dossier import GMPDossier
 
+_AUDIT_READY_COMPLETENESS_THRESHOLD = 0.9
+
 
 class ValidationAuditRoomView(BaseModel):
     site_id: str
@@ -13,6 +15,8 @@ class ValidationAuditRoomView(BaseModel):
     missing_source_records: dict[str, list[str]] = Field(default_factory=dict)
     validation_notes: list[str] = Field(default_factory=list)
     release_deployment_evidence_references: list[str] = Field(default_factory=list)
+    dossier_completeness_table: list[dict] = Field(default_factory=list)
+    audit_ready_status: dict[str, str] = Field(default_factory=dict)
 
 
 def build_validation_audit_room(
@@ -31,6 +35,26 @@ def build_validation_audit_room(
         completeness[dossier.event_id] = round((total - len(impact.missing_evidence)) / total, 2)
         approvals[dossier.event_id] = "pending_human_approval"
         missing_records[dossier.event_id] = impact.missing_evidence
+    
+    dossier_completeness_table = []
+    for dossier in dossiers:
+        impact = impact_index[dossier.event_id]
+        dossier_completeness_table.append({
+            "event_id": dossier.event_id,
+            "completeness_score": completeness[dossier.event_id],
+            "missing_count": len(impact.missing_evidence),
+            "approval_status": approvals[dossier.event_id],
+        })
+    
+    audit_ready_status = {}
+    for dossier in dossiers:
+        comp_score = completeness[dossier.event_id]
+        impact = impact_index[dossier.event_id]
+        if comp_score >= _AUDIT_READY_COMPLETENESS_THRESHOLD and not impact.missing_evidence:
+            audit_ready_status[dossier.event_id] = "audit_ready"
+        else:
+            audit_ready_status[dossier.event_id] = "not_audit_ready"
+    
     return ValidationAuditRoomView(
         site_id=site_id,
         evidence_lineage_completeness=completeness,
@@ -44,4 +68,6 @@ def build_validation_audit_room(
             "docs/architecture/enterprise_release_lifecycle.md",
             "docs/compliance/release_validation_evidence.md",
         ],
+        dossier_completeness_table=dossier_completeness_table,
+        audit_ready_status=audit_ready_status,
     )

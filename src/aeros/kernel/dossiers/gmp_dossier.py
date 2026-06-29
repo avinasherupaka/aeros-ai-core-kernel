@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,13 @@ class GMPDossier(BaseModel):
     markdown_path: str
     json_path: str
     sections: dict[str, Any] = Field(default_factory=dict)
+    manifest_path: str = ""
+    evidence_index_path: str = ""
+    source_citations_path: str = ""
+    missing_evidence_checklist_path: str = ""
+    approval_placeholder_path: str = ""
+    package_hashes_path: str = ""
+    package_completeness_score: float = 0.0
 
 
 def _default_root() -> Path:
@@ -139,6 +148,124 @@ def build_gmp_dossier(
 """
     markdown_path.write_text(markdown)
     json_path.write_text(json.dumps(sections, indent=2))
+
+    manifest_path = event_dir / "manifest.json"
+    evidence_index_path = event_dir / "evidence_index.json"
+    source_citations_path = event_dir / "source_citations.json"
+    missing_evidence_checklist_path = event_dir / "missing_evidence_checklist.json"
+    approval_placeholder_path = event_dir / "approval_placeholder.json"
+    package_hashes_path = event_dir / "package_hashes.json"
+
+    manifest = {
+        "package_id": f"pkg::{event.event_id}",
+        "event_id": event.event_id,
+        "tenant_id": event.tenant_id,
+        "site_id": event.site_id,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "artifacts": [
+            {"name": "dossier.md", "type": "evidence_narrative", "path": str(markdown_path)},
+            {"name": "dossier.json", "type": "evidence_json", "path": str(json_path)},
+            {"name": "manifest.json", "type": "package_manifest", "path": str(manifest_path)},
+            {"name": "evidence_index.json", "type": "evidence_index", "path": str(evidence_index_path)},
+            {"name": "source_citations.json", "type": "source_citations", "path": str(source_citations_path)},
+            {"name": "missing_evidence_checklist.json", "type": "missing_evidence", "path": str(missing_evidence_checklist_path)},
+            {"name": "approval_placeholder.json", "type": "approval", "path": str(approval_placeholder_path)},
+            {"name": "package_hashes.json", "type": "integrity", "path": str(package_hashes_path)},
+        ],
+        "compliance_note": COMPLIANCE_NOTE,
+    }
+
+    evidence_index = {
+        "event_id": event.event_id,
+        "required_evidence": [
+            {
+                "item": item,
+                "status": "present" if item not in impact_assessment.missing_evidence else "missing",
+                "source_hint": f"Refer to {assessment.source_lineage.get('source_system', 'source_system')} for this evidence item.",
+            }
+            for item in impact_assessment.required_evidence
+        ],
+        "evidence_graph_node_count": len(evidence_graph.nodes),
+        "evidence_graph_edge_count": len(evidence_graph.edges),
+    }
+
+    source_citations = {
+        "event_id": event.event_id,
+        "citations": [
+            {
+                "source_system": assessment.source_lineage.get("source_system", "unknown"),
+                "source_protocol": assessment.source_lineage.get("source_protocol", "unknown"),
+                "connector_id": assessment.source_lineage.get("connector_id", "unknown"),
+                "trace_id": event.trace_id or f"trace::{event.event_id}",
+                "source_record_reference": assessment.source_lineage.get("source_record_reference", f"{event.asset_id}:{event.metric}"),
+                "tenant_id": event.tenant_id,
+                "site_id": event.site_id,
+                "asset_id": event.asset_id,
+                "metric": event.metric,
+                "quality": assessment.source_lineage.get("quality", "GOOD"),
+            }
+        ],
+    }
+
+    missing_evidence_checklist = {
+        "event_id": event.event_id,
+        "items": [
+            {
+                "item": item,
+                "status": "missing",
+                "action_required": f"Obtain or confirm '{item}' before QA disposition.",
+                "assigned_to": impact_assessment.suggested_human_review_owners[0] if impact_assessment.suggested_human_review_owners else "QA",
+            }
+            for item in impact_assessment.missing_evidence
+        ],
+        "total_missing": len(impact_assessment.missing_evidence),
+    }
+
+    approval_placeholder = {
+        "event_id": event.event_id,
+        "status": "pending_human_approval",
+        "review_required_by": impact_assessment.suggested_human_review_owners,
+        "review_statement": "QA/operations/engineering review required before quality decision. AI assists evidence generation; humans approve quality decisions.",
+        "approval_statement": "Human-approved, audit-ready evidence pack placeholder.",
+        "electronic_signature_placeholder": {
+            "reviewer_name": "",
+            "reviewer_role": "",
+            "review_date": "",
+            "approval_name": "",
+            "approval_role": "",
+            "approval_date": "",
+            "meaning": "I confirm the evidence in this package has been reviewed and approved.",
+        },
+        "compliance_note": COMPLIANCE_NOTE,
+    }
+
+    manifest_path.write_text(json.dumps(manifest, indent=2))
+    evidence_index_path.write_text(json.dumps(evidence_index, indent=2))
+    source_citations_path.write_text(json.dumps(source_citations, indent=2))
+    missing_evidence_checklist_path.write_text(json.dumps(missing_evidence_checklist, indent=2))
+    approval_placeholder_path.write_text(json.dumps(approval_placeholder, indent=2))
+
+    package_hashes = {
+        "event_id": event.event_id,
+        "algorithm": "sha256",
+        "hashes": {
+            "dossier.md": hashlib.sha256(markdown_path.read_bytes()).hexdigest(),
+            "dossier.json": hashlib.sha256(json_path.read_bytes()).hexdigest(),
+            "manifest.json": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            "evidence_index.json": hashlib.sha256(evidence_index_path.read_bytes()).hexdigest(),
+            "source_citations.json": hashlib.sha256(source_citations_path.read_bytes()).hexdigest(),
+            "missing_evidence_checklist.json": hashlib.sha256(missing_evidence_checklist_path.read_bytes()).hexdigest(),
+            "approval_placeholder.json": hashlib.sha256(approval_placeholder_path.read_bytes()).hexdigest(),
+        },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "note": "Hashes computed at package generation time for local integrity verification.",
+    }
+    package_hashes_path.write_text(json.dumps(package_hashes, indent=2))
+
+    total_evidence = max(len(impact_assessment.required_evidence), 1)
+    present_evidence = total_evidence - len(impact_assessment.missing_evidence)
+    package_completeness_score = round(present_evidence / total_evidence, 2)
+
     return GMPDossier(
         event_id=event.event_id,
         tenant_id=event.tenant_id,
@@ -146,5 +273,12 @@ def build_gmp_dossier(
         markdown_path=str(markdown_path),
         json_path=str(json_path),
         sections=sections,
+        manifest_path=str(manifest_path),
+        evidence_index_path=str(evidence_index_path),
+        source_citations_path=str(source_citations_path),
+        missing_evidence_checklist_path=str(missing_evidence_checklist_path),
+        approval_placeholder_path=str(approval_placeholder_path),
+        package_hashes_path=str(package_hashes_path),
+        package_completeness_score=package_completeness_score,
     )
 

@@ -100,9 +100,16 @@ curl -s http://127.0.0.1:8000/workflows/plant-head-assurance | python3 -m json.t
 curl -s http://127.0.0.1:8000/workflows/validation-audit-room | python3 -m json.tool
 ```
 
+For the full evidence package, deviation drafts, APQR generation, and new endpoints added in the hardening pass, see:
+
+```
+docs/runbooks/10_evidence_package_and_workflow_demo.md
+```
+
 ## 9. Learning tie-back
 
 - Phase 3: ontology + industry packs
-- Phase 4: assurance engines
+- Phase 4: assurance engines (state-of-control, event-to-impact, evidence graph, reliability intelligence)
 - Phase 5: dossiers + workflows + API
+- Hardening pass: full GMP evidence package (8 files), confidence breakdown, ImpactPath/ImpactRationale, evidence graph query methods, reliability recommended actions, APQR file output, deviation draft, workflow risk scores
 - Greengrass V2: architecture only in this repo; local runtime remains a sandbox/test harness

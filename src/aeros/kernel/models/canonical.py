@@ -132,3 +132,4 @@ class StateOfControlAssessment(BaseModel):
     parameter_assessments: list[dict[str, Any]] = Field(default_factory=list)
     source_lineage: dict[str, Any] = Field(default_factory=dict)
     assessed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    confidence_breakdown: dict[str, Any] = Field(default_factory=dict)
