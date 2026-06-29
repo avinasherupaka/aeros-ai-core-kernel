@@ -1,0 +1,26 @@
+[
+  {
+    "record_id": "PI-1",
+    "tag": "AHU-01.HUMIDITY",
+    "asset_id": "AHU-01",
+    "timestamp": "2026-06-01T10:00:00+00:00",
+    "value": 61.4,
+    "unit": "%RH"
+  },
+  {
+    "record_id": "PI-2",
+    "tag": "AHU-01.HUMIDITY",
+    "asset_id": "AHU-01",
+    "timestamp": "2026-06-01T10:10:00+00:00",
+    "value": 62.0,
+    "unit": "%RH"
+  },
+  {
+    "record_id": "PI-3",
+    "tag": "COMP-02.TEMP",
+    "asset_id": "COMP-02",
+    "timestamp": "2026-06-01T10:20:00+00:00",
+    "value": 23.1,
+    "unit": "C"
+  }
+]
