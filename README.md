@@ -1,5 +1,12 @@
 # Areos AI Core Kernel (AWS-native enterprise foundation)
 
+
+## Architecture and runbook entry points
+
+- `docs/architecture/mission_critical_target_architecture.md`
+- `docs/architecture/master_architecture_diagram.md`
+- `docs/runbooks/00_FULL_SYSTEM_TEST_AND_DEMO_GUIDE.md`
+
 Areos.ai = **Assurance, Reliability, Efficiency Operating System**.
 
 - Areos is a **system of assurance, not a system of record**.
