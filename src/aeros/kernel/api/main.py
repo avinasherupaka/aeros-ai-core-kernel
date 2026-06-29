@@ -359,3 +359,251 @@ def get_enterprise_readiness() -> dict:
         "connector_health": connector_registry.health(),
         "agent_runtime": "local deterministic harness",
     }
+
+# ---- New mission-critical endpoints (Phase 8 re-architecture) ----
+
+from aeros.kernel.algorithms.fingerprints import EventFingerprintInput, compute_event_fingerprint
+from aeros.kernel.algorithms.idempotency import IdempotencyRegistry
+from aeros.kernel.algorithms.deterministic_answer import (
+    AnswerCitation,
+    compose_qa_impact_answer,
+    compose_audit_readiness_answer,
+    compose_engineering_reliability_answer,
+)
+from aeros.kernel.data_backbone.lakehouse_contracts import ALL_TABLE_CONTRACTS, LakehouseZone
+from aeros.kernel.data_backbone.query_contracts import IncidentQuery, execute_stub_query
+from aeros.kernel.ingestion.realtime_contracts import IngestionMode, RealtimeSourceType, SourceSystemEvent
+from aeros.kernel.ingestion.event_api_connector import EventApiConnector
+from aeros.kernel.bedrock.guardrails import check_guardrails
+from aeros.kernel.bedrock.runtime_contracts import BedrockRuntimeMode, BedrockResponseEnvelope, BedrockGroundingPolicy
+
+_event_api_connector = EventApiConnector(tenant_id='demo_tenant', site_id='demo_site')
+_event_api_registry = IdempotencyRegistry()
+
+
+def _resolve_demo_bundle(event_id: str):
+    candidates = [event_id, f'event::{event_id}']
+    for candidate in candidates:
+        try:
+            return get_demo_event_bundle(candidate)
+        except KeyError:
+            continue
+    bundle_map = demo_event_bundles()
+    for key, bundle in bundle_map.items():
+        if event_id in {key, bundle.scenario_id, bundle.event.event_id} or event_id in bundle.scenario_id:
+            return bundle
+    raise HTTPException(status_code=404, detail=f'Unknown event_id: {event_id}')
+
+
+@app.get('/architecture/data-backbone')
+def get_data_backbone_architecture() -> dict:
+    """Return data backbone contract summary."""
+    from aeros.kernel.algorithms.rule_versioning import DEFAULT_PROCESSING_CONTEXT
+
+    return {
+        'target_architecture': 'AWS-native hybrid lakehouse + graph + time-series',
+        'zones': [z.value for z in LakehouseZone],
+        'table_contracts': [
+            {'table_name': t.table_name, 'zone': t.zone.value, 'description': t.description}
+            for t in ALL_TABLE_CONTRACTS
+        ],
+        'backbone_components': {
+            'time_series': 'AWS IoT SiteWise',
+            'lakehouse': 'S3 + Apache Iceberg + Glue Data Catalog + Lake Formation',
+            'graph': 'Amazon Neptune (target); in-memory NetworkX (local sandbox)',
+            'workflow_state': 'DynamoDB / Aurora PostgreSQL (target)',
+            'semantic_search': 'OpenSearch / Bedrock Knowledge Bases (retrieval only)',
+            'rendering': 'Amazon Bedrock (interface layer, not decision engine)',
+        },
+        'schema_version': DEFAULT_PROCESSING_CONTEXT.schema_version,
+    }
+
+
+@app.get('/architecture/deterministic-algorithms')
+def get_deterministic_algorithms() -> dict:
+    """Return deterministic algorithm registry summary."""
+    from aeros.kernel.algorithms.rule_versioning import DEFAULT_PROCESSING_CONTEXT
+
+    return {
+        'kernel_version': DEFAULT_PROCESSING_CONTEXT.kernel_version,
+        'schema_version': DEFAULT_PROCESSING_CONTEXT.schema_version,
+        'ontology_version': DEFAULT_PROCESSING_CONTEXT.ontology_version,
+        'rules': [
+            {
+                'rule_id': r.rule_id,
+                'category': r.rule_category.value,
+                'version': r.version,
+                'description': r.description,
+            }
+            for r in DEFAULT_PROCESSING_CONTEXT.rules
+        ],
+        'determinism_guarantee': (
+            'Same input + same rule/schema/code versions → exact same output. '
+            'All regulated conclusions are produced by deterministic algorithms, '
+            'not by LLM probabilistic inference.'
+        ),
+    }
+
+
+class SimulateEventBody(BaseModel):
+    source_system: str = 'demo_bms'
+    parameter: str = 'temperature'
+    value: str = '26.5'
+    unit: str = 'degC'
+    event_id: str | None = None
+    timestamp: str | None = None
+
+
+@app.post('/ingestion/events/simulate')
+def simulate_ingest_event(body: SimulateEventBody) -> dict:
+    """Simulate real-time event ingestion (no AWS credentials required)."""
+    from datetime import datetime, timezone
+    import uuid
+
+    event = SourceSystemEvent(
+        event_id=body.event_id or str(uuid.uuid4()),
+        source_system=body.source_system,
+        source_type=RealtimeSourceType.API_POLLING,
+        tenant_id='demo_tenant',
+        site_id='demo_site',
+        timestamp=body.timestamp or datetime.now(timezone.utc).isoformat(),
+        parameter=body.parameter,
+        value=body.value,
+        unit=body.unit,
+    )
+    ack = _event_api_connector.ingest_event(event)
+    return {
+        'fingerprint': ack.fingerprint,
+        'is_duplicate': ack.is_duplicate,
+        'accepted': ack.accepted,
+        'envelope_id': ack.envelope_id,
+        'processor_version': ack.processor_version,
+        'total_processed': _event_api_connector.processed_count(),
+        'total_duplicates': _event_api_connector.duplicate_count(),
+    }
+
+
+@app.post('/answers/qa-impact/{event_id}')
+def get_qa_impact_answer(event_id: str) -> dict:
+    """Return deterministic QA impact answer for an event."""
+    from aeros.kernel.algorithms.rule_versioning import DEFAULT_PROCESSING_CONTEXT
+    import uuid
+
+    bundle = _resolve_demo_bundle(event_id)
+    impact = bundle.impact
+    answer = compose_qa_impact_answer(
+        answer_id=str(uuid.uuid4()),
+        event_summary=f'{bundle.event.metric} excursion at {bundle.event.asset_id}',
+        impacted_batches=[b for b in [bundle.event.batch_id] if b],
+        quality_risks=impact.likely_quality_risks[:3],
+        evidence_status=(
+            impact.evidence_status_list[0].status
+            if getattr(impact, 'evidence_status_list', None)
+            else 'pending'
+        ),
+        missing_evidence=impact.missing_evidence if hasattr(impact, 'missing_evidence') else [],
+        citations=[
+            AnswerCitation(
+                source_system='aeros_kernel',
+                record_id=bundle.event.event_id,
+                record_type='assurance_event',
+                timestamp=bundle.event.timestamp.isoformat(),
+            )
+        ],
+        versions={
+            'kernel': DEFAULT_PROCESSING_CONTEXT.kernel_version,
+            'schema': DEFAULT_PROCESSING_CONTEXT.schema_version,
+        },
+    )
+    return {
+        'answer_id': answer.answer_id,
+        'answer_type': answer.answer_type.value,
+        'answer_text': answer.answer_text,
+        'decision_state': answer.decision_state.value,
+        'basis_facts': answer.basis_facts,
+        'missing_evidence': answer.missing_evidence,
+        'human_review_required': answer.human_review_required,
+        'generated_from_versions': answer.generated_from_versions,
+    }
+
+
+@app.post('/answers/audit-readiness/{event_id}')
+def get_audit_readiness_answer(event_id: str) -> dict:
+    """Return deterministic audit readiness answer for an event."""
+    from aeros.kernel.algorithms.rule_versioning import DEFAULT_PROCESSING_CONTEXT
+    import uuid
+
+    bundle = _resolve_demo_bundle(event_id)
+    dossier = bundle.dossier
+    answer = compose_audit_readiness_answer(
+        answer_id=str(uuid.uuid4()),
+        event_id=bundle.event.event_id,
+        dossier_completeness_score=(
+            dossier.package_completeness_score if hasattr(dossier, 'package_completeness_score') else 0.8
+        ),
+        missing_evidence=(
+            bundle.impact.missing_evidence if hasattr(bundle.impact, 'missing_evidence') else []
+        ),
+        citations=[
+            AnswerCitation(
+                source_system='aeros_kernel',
+                record_id=bundle.event.event_id,
+                record_type='gmp_dossier',
+                timestamp=bundle.event.timestamp.isoformat(),
+            )
+        ],
+        versions={
+            'kernel': DEFAULT_PROCESSING_CONTEXT.kernel_version,
+            'schema': DEFAULT_PROCESSING_CONTEXT.schema_version,
+        },
+    )
+    return {
+        'answer_id': answer.answer_id,
+        'answer_type': answer.answer_type.value,
+        'answer_text': answer.answer_text,
+        'decision_state': answer.decision_state.value,
+        'missing_evidence': answer.missing_evidence,
+        'human_review_required': answer.human_review_required,
+    }
+
+
+class BedrockRenderDraftBody(BaseModel):
+    answer_id: str = 'demo_answer_001'
+    mode: str = 'narrative_rendering'
+    rendered_text: str = 'The humidity excursion event has been assessed. Batch B-2024-001 may have been impacted. Human review required.'
+
+
+@app.post('/bedrock/render-draft')
+def bedrock_render_draft(body: BedrockRenderDraftBody) -> dict:
+    """
+    Simulate Bedrock rendering a deterministic answer as a narrative.
+    Runs guardrail checks on the rendered text.
+    No AWS or Bedrock credentials required — local simulation only.
+    """
+    guardrail_result = check_guardrails(body.rendered_text)
+    try:
+        mode = BedrockRuntimeMode(body.mode)
+    except ValueError:
+        mode = BedrockRuntimeMode.NARRATIVE_RENDERING
+    envelope = BedrockResponseEnvelope(
+        response_id=f'bedrock_render_{body.answer_id}',
+        mode=mode,
+        deterministic_answer_id=body.answer_id,
+        rendered_text=body.rendered_text,
+        grounding_policy=BedrockGroundingPolicy(),
+        citations=[body.answer_id],
+        human_approval_required=True,
+    )
+    return {
+        'response_id': envelope.response_id,
+        'mode': envelope.mode.value,
+        'deterministic_answer_id': envelope.deterministic_answer_id,
+        'rendered_text': envelope.rendered_text,
+        'disclaimer': envelope.disclaimer,
+        'human_approval_required': envelope.human_approval_required,
+        'guardrail_passed': guardrail_result.passed,
+        'guardrail_violations': [
+            {'rule': v.rule, 'matched_phrase': v.matched_phrase}
+            for v in guardrail_result.violations
+        ],
+    }

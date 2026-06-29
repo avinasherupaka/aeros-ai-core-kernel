@@ -223,3 +223,101 @@ curl -s http://127.0.0.1:8000/enterprise/readiness | python3 -m json.tool
 - Bedrock/MCP runtime is scaffolded, not required for local testing.
 - Enterprise resilience/load testing is documented, not fully automated.
 - Customer-specific validation, IQ/OQ/PQ, and production release controls remain implementation/deployment work.
+
+## Phase 8: Mission-Critical Re-Architecture — Data Backbone, Deterministic Algorithms & Bedrock Runtime
+
+### Data backbone decision
+
+The target architecture is an **AWS-native hybrid backbone**:
+
+- AWS IoT SiteWise for industrial asset models and hot/warm time-series
+- S3 lakehouse with Apache Iceberg-style contracts, Glue Data Catalog, and Lake Formation
+- Amazon Neptune for evidence graph and provenance traversal
+- DynamoDB / Aurora PostgreSQL for workflow state, idempotency, and control-plane state
+- OpenSearch / Bedrock Knowledge Bases for retrieval only, not regulated truth
+- Amazon Bedrock as a controlled rendering and narrative layer over deterministic tools
+
+This preserves the core positioning: Areos is a **system of assurance, not a system of record**.
+
+### Lakehouse zones
+
+The new data backbone contracts define four governed zones:
+
+- **bronze** — raw source payloads and ingestion envelopes
+- **silver** — canonical normalized records
+- **gold** — deterministic assessments and evidence products
+- **audit** — manifests, idempotency, and version/provenance artifacts
+
+### Incident query strategy
+
+Query contracts are now defined for future governed lake queries. The current implementation exposes a stub contract so downstream API and product layers can align on tenant/site-scoped filters before a physical lake query engine is introduced.
+
+### Real-time ingestion strategy + file connector repositioned as legacy
+
+Production ingestion preference order is now explicitly documented and modeled in code:
+
+1. native events/webhooks
+2. APIs/OData/REST/SOAP
+3. OT protocols via Greengrass V2/SiteWise Edge
+4. historian streaming/query APIs
+5. enterprise event bus
+6. managed transfer/SFTP fallback
+7. manual file import — legacy onboarding/backfill only
+
+`FileImportConnector` remains available for local testing, onboarding, and backfill, but it is no longer positioned as the preferred production pattern.
+
+### Deterministic/idempotent algorithm tests
+
+Run the new focused tests:
+
+```bash
+python -m pytest tests/test_event_fingerprints.py -q
+python -m pytest tests/test_idempotency_registry.py -q
+python -m pytest tests/test_deterministic_answer.py -q
+python -m pytest tests/test_lakehouse_contracts.py -q
+python -m pytest tests/test_lakehouse_paths.py -q
+python -m pytest tests/test_graph_projection.py -q
+python -m pytest tests/test_query_contracts.py -q
+python -m pytest tests/test_realtime_ingestion_contracts.py -q
+python -m pytest tests/test_event_api_connector_idempotency.py -q
+python -m pytest tests/test_bedrock_runtime_contracts.py -q
+python -m pytest tests/test_bedrock_guardrails.py -q
+```
+
+Full suite confirmation:
+
+```bash
+python -m pytest tests/ -q
+```
+
+### Bedrock runtime as controlled renderer
+
+The repository now includes explicit Bedrock runtime, prompt, and guardrail contracts. Bedrock is treated as a controlled renderer and explainer over deterministic answers. It must not invent evidence or make autonomous GxP decisions.
+
+### Master architecture diagram link
+
+- `docs/architecture/master_architecture_diagram.md`
+
+### New API endpoints and test commands
+
+```bash
+# Architecture overview
+curl http://localhost:8000/architecture/data-backbone
+curl http://localhost:8000/architecture/deterministic-algorithms
+
+# Simulate real-time event ingestion
+curl -X POST http://localhost:8000/ingestion/events/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"source_system":"bms","parameter":"temperature","value":"26.5","unit":"degC"}'
+
+# Get deterministic QA impact answer
+curl -X POST http://localhost:8000/answers/qa-impact/humidity_excursion_1
+
+# Get deterministic audit readiness answer
+curl -X POST http://localhost:8000/answers/audit-readiness/humidity_excursion_1
+
+# Bedrock render draft (local simulation)
+curl -X POST http://localhost:8000/bedrock/render-draft \
+  -H "Content-Type: application/json" \
+  -d '{"answer_id":"ans_001","mode":"narrative_rendering","rendered_text":"The excursion has been assessed. Human review is required."}'
+```
