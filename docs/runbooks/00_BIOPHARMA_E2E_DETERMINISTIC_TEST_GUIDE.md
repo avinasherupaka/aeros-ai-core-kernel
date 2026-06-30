@@ -2,6 +2,15 @@
 
 This guide is for **AWS dev-cell execution** of biopharma deterministic scenarios, including live-credential readiness with sample fallback.
 
+## One-command automation (recommended)
+
+```bash
+cd /home/runner/work/aeros-ai-core-kernel/aeros-ai-core-kernel
+./scripts/run_magic_e2e_suite.sh
+```
+
+This command runs the full deterministic validation pack and emits timestamped evidence artifacts in `artifacts/validation/e2e_magic/`.
+
 ## Section 1: Local sandbox prerequisites (Python, Docker, MQTT)
 
 "Local sandbox" here means runtime-local on an AWS-hosted runner (not a personal machine).

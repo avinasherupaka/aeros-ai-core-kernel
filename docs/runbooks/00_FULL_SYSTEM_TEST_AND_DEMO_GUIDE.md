@@ -207,6 +207,15 @@ Store at least:
 
 ## 10) E2E test suite structure (OSD + biopharma)
 
+One-command automation (local/AWS-hosted runner sandbox):
+
+```bash
+cd /home/runner/work/aeros-ai-core-kernel/aeros-ai-core-kernel
+./scripts/run_magic_e2e_suite.sh
+```
+
+This single invocation runs validation tests plus deterministic orchestration and writes a timestamped evidence package to `artifacts/validation/e2e_magic/`.
+
 Use one framework and two scenario packs:
 - OSD pack (humidity/pressure/dew-point)
 - Biopharma pack (bioreactor temp/pH, WFI, cold-room)

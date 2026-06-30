@@ -49,6 +49,14 @@ pytest -q
 uvicorn aeros.kernel.api.main:app --reload
 ```
 
+## One-command end-to-end demo + validation suite
+
+```bash
+./scripts/run_magic_e2e_suite.sh
+```
+
+This runs a full deterministic validation pack (connectors, ingestion, processors, assurance, evidence graph, dossier, workflows, personas) and writes timestamped evidence artifacts under `artifacts/validation/e2e_magic/`.
+
 ## Full system guide
 
 Start with the consolidated end-to-end guide:
