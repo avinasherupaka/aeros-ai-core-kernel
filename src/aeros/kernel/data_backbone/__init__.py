@@ -7,6 +7,7 @@ from aeros.kernel.data_backbone.bronze_silver_gold import (
     s3_key,
     silver_path,
 )
+from aeros.kernel.data_backbone.bronze_writer import LocalBronzeWriter, S3BronzeWriter
 from aeros.kernel.data_backbone.graph_projection import (
     PropertyGraphEdgeRecord,
     PropertyGraphNodeRecord,
@@ -48,6 +49,8 @@ __all__ = [
     'bronze_path',
     'gold_path',
     's3_key',
+    'LocalBronzeWriter',
+    'S3BronzeWriter',
     'silver_path',
     'PropertyGraphEdgeRecord',
     'PropertyGraphNodeRecord',

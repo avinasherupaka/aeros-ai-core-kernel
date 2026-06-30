@@ -36,6 +36,7 @@ module "evidence_lake" {
   source         = "../../modules/evidence_lake"
   bucket_name    = var.evidence_bucket_name
   create_kms_key = true
+  enable_object_lock = var.enable_object_lock
   tags           = module.foundation.common_tags
 }
 
@@ -62,6 +63,32 @@ module "iot_core" {
   topic_prefix              = var.topic_prefix
   cloudwatch_log_group_name = module.observability.iot_log_group_name
   cloudwatch_log_group_arn  = "arn:aws:logs:${var.aws_region}:${module.foundation.account_id}:log-group:${module.observability.iot_log_group_name}"
+  client_id_prefix          = "areos-gw"
+}
+
+module "neptune" {
+  source             = "../../modules/neptune"
+  name               = "areos-${var.tenant_id}-${var.site_id}-neptune"
+  subnet_ids         = var.vpc_subnet_ids
+  security_group_ids = var.vpc_security_group_ids
+  enabled            = var.enable_neptune
+  tags               = module.foundation.common_tags
+}
+
+module "lakehouse_catalog" {
+  source                  = "../../modules/lakehouse_catalog"
+  database_name           = "areos_${var.tenant_id}_${var.site_id}"
+  athena_workgroup        = "areos-${var.tenant_id}-${var.site_id}"
+  results_output_location = "s3://${module.evidence_lake.bucket_name}/athena-results/"
+  enabled                 = var.enable_lakehouse_catalog
+  tags                    = module.foundation.common_tags
+}
+
+module "workflow_runtime" {
+  source      = "../../modules/workflow_runtime"
+  name_prefix = "areos-${var.tenant_id}-${var.site_id}"
+  enabled     = var.enable_workflow_runtime
+  tags        = module.foundation.common_tags
 }
 
 module "sitewise" {
@@ -84,7 +111,7 @@ module "github_oidc" {
       },
       {
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Action = ["s3:GetObject", "s3:PutObject"]
         Resource = ["${local.evidence_bucket_arn}/*"]
       },
       {
@@ -95,8 +122,7 @@ module "github_oidc" {
           "dynamodb:PutItem",
           "dynamodb:UpdateItem",
           "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
+          "dynamodb:Query"
         ]
         Resource = [local.table_arn]
       },

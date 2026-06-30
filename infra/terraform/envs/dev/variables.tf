@@ -43,6 +43,42 @@ variable "enable_sitewise_resources" {
   description = "Set true only when ready to create SiteWise resources."
 }
 
+variable "enable_object_lock" {
+  type        = bool
+  default     = false
+  description = "Enable S3 Object Lock for evidence lake bucket."
+}
+
+variable "enable_neptune" {
+  type        = bool
+  default     = false
+  description = "Enable Neptune module resources."
+}
+
+variable "enable_lakehouse_catalog" {
+  type        = bool
+  default     = false
+  description = "Enable Glue catalog and Athena workgroup resources."
+}
+
+variable "enable_workflow_runtime" {
+  type        = bool
+  default     = false
+  description = "Enable Step Functions, Lambda IAM, and Bedrock IAM resources."
+}
+
+variable "vpc_subnet_ids" {
+  type        = list(string)
+  default     = []
+  description = "Subnets for Neptune when enabled."
+}
+
+variable "vpc_security_group_ids" {
+  type        = list(string)
+  default     = []
+  description = "Security groups for Neptune when enabled."
+}
+
 variable "github_oidc_role_name" {
   type        = string
   default     = "areos-github-actions-dev"

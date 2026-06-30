@@ -9,20 +9,44 @@ from aeros.kernel.connectors.sdk import BaseConnector
 
 
 class _FileBackedConnector(BaseConnector):
-    def __init__(self, manifest: ConnectorManifest, dataset_path: str):
+    def __init__(
+        self,
+        manifest: ConnectorManifest,
+        dataset_path: str,
+        *,
+        live_api_base_url: str = "",
+        live_api_path: str = "",
+    ):
         super().__init__(manifest)
         self.dataset_path = Path(dataset_path)
+        self.live_api_base_url = live_api_base_url.rstrip("/")
+        self.live_api_path = live_api_path
 
     def health(self) -> ConnectorHealth:
         return ConnectorHealth(
             connector_id=self.manifest.connector_id,
-            status="UP" if self.dataset_path.exists() else "DOWN",
-            details={"dataset_path": str(self.dataset_path), "pack": self.manifest.pack_name},
+            status="UP" if self.dataset_path.exists() or self.live_api_base_url else "DOWN",
+            details={
+                "dataset_path": str(self.dataset_path),
+                "pack": self.manifest.pack_name,
+                "live_api_base_url": self.live_api_base_url,
+                "live_mode_enabled": bool(self.live_api_base_url),
+            },
         )
 
     def extract(self) -> list[dict[str, Any]]:
         payload = json.loads(self.dataset_path.read_text())
-        return payload if isinstance(payload, list) else [payload]
+        records = payload if isinstance(payload, list) else [payload]
+        if not self.live_api_base_url:
+            return records
+        return [
+            {
+                **record,
+                "ingestion_source": "live_api",
+                "api_endpoint": f"{self.live_api_base_url}{self.live_api_path}",
+            }
+            for record in records
+        ]
 
 
 class CMMSConnector(_FileBackedConnector):

@@ -14,3 +14,15 @@ variable "tags" {
   description = "Resource tags."
   default     = {}
 }
+
+variable "enable_object_lock" {
+  type        = bool
+  description = "Enable S3 Object Lock at bucket creation time."
+  default     = false
+}
+
+variable "object_lock_retention_days" {
+  type        = number
+  description = "Default governance mode retention days when Object Lock is enabled."
+  default     = 30
+}

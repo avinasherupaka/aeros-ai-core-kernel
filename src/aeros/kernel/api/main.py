@@ -9,6 +9,7 @@ Run:
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -363,7 +364,7 @@ def get_enterprise_readiness() -> dict:
 # ---- New mission-critical endpoints (Phase 8 re-architecture) ----
 
 from aeros.kernel.algorithms.fingerprints import EventFingerprintInput, compute_event_fingerprint
-from aeros.kernel.algorithms.idempotency import IdempotencyRegistry
+from aeros.kernel.algorithms.idempotency import DynamoDBIdempotencyRegistry, IdempotencyRegistry
 from aeros.kernel.algorithms.deterministic_answer import (
     AnswerCitation,
     compose_qa_impact_answer,
@@ -375,10 +376,35 @@ from aeros.kernel.data_backbone.query_contracts import IncidentQuery, execute_st
 from aeros.kernel.ingestion.realtime_contracts import IngestionMode, RealtimeSourceType, SourceSystemEvent
 from aeros.kernel.ingestion.event_api_connector import EventApiConnector
 from aeros.kernel.bedrock.guardrails import check_guardrails
+from aeros.kernel.bedrock.runtime_client import BedrockRuntimeClient
 from aeros.kernel.bedrock.runtime_contracts import BedrockRuntimeMode, BedrockResponseEnvelope, BedrockGroundingPolicy
+from aeros.kernel.data_backbone.bronze_writer import LocalBronzeWriter, S3BronzeWriter
 
-_event_api_connector = EventApiConnector(tenant_id='demo_tenant', site_id='demo_site')
-_event_api_registry = IdempotencyRegistry()
+_idempotency_table_name = os.getenv("AREOS_IDEMPOTENCY_DDB_TABLE", "").strip()
+_bronze_bucket = os.getenv("AREOS_BRONZE_BUCKET", "").strip()
+if _idempotency_table_name:
+    _event_api_registry = DynamoDBIdempotencyRegistry(
+        table_name=_idempotency_table_name,
+        region_name=os.getenv("AWS_REGION", "ap-south-1"),
+        endpoint_url=os.getenv("AREOS_DYNAMODB_ENDPOINT_URL"),
+    )
+else:
+    _event_api_registry = IdempotencyRegistry()
+_event_api_connector = EventApiConnector(
+    tenant_id='demo_tenant',
+    site_id='demo_site',
+    idempotency_registry=_event_api_registry,
+    bronze_writer=(
+        S3BronzeWriter(bucket_name=_bronze_bucket, region_name=os.getenv("AWS_REGION", "ap-south-1"))
+        if _bronze_bucket
+        else LocalBronzeWriter(Path(__file__).resolve().parents[4] / "artifacts" / "lakehouse")
+    ),
+)
+_bedrock_client = BedrockRuntimeClient(
+    model_id=os.getenv("AREOS_BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20240620-v1:0"),
+    guardrail_id=os.getenv("AREOS_BEDROCK_GUARDRAIL_ID", ""),
+    guardrail_version=os.getenv("AREOS_BEDROCK_GUARDRAIL_VERSION", ""),
+)
 
 
 def _resolve_demo_bundle(event_id: str):
@@ -580,20 +606,16 @@ def bedrock_render_draft(body: BedrockRenderDraftBody) -> dict:
     Runs guardrail checks on the rendered text.
     No AWS or Bedrock credentials required — local simulation only.
     """
-    guardrail_result = check_guardrails(body.rendered_text)
     try:
         mode = BedrockRuntimeMode(body.mode)
     except ValueError:
         mode = BedrockRuntimeMode.NARRATIVE_RENDERING
-    envelope = BedrockResponseEnvelope(
-        response_id=f'bedrock_render_{body.answer_id}',
-        mode=mode,
+    envelope = _bedrock_client.render(
         deterministic_answer_id=body.answer_id,
-        rendered_text=body.rendered_text,
-        grounding_policy=BedrockGroundingPolicy(),
-        citations=[body.answer_id],
-        human_approval_required=True,
+        prompt=body.rendered_text,
+        mode=mode,
     )
+    guardrail_result = check_guardrails(envelope.rendered_text)
     return {
         'response_id': envelope.response_id,
         'mode': envelope.mode.value,

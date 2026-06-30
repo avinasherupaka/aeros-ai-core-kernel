@@ -20,6 +20,12 @@ variable "thing_type_name" {
   default     = "areos-site-gateway"
 }
 
+variable "client_id_prefix" {
+  type        = string
+  description = "Allowed MQTT client ID prefix."
+  default     = "areos-gw"
+}
+
 variable "cloudwatch_log_group_name" {
   type        = string
   description = "CloudWatch log group name for IoT topic rule action."

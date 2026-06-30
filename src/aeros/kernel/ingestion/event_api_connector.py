@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 
 from aeros.kernel.algorithms.fingerprints import EventFingerprintInput, compute_event_fingerprint
-from aeros.kernel.algorithms.idempotency import IdempotencyRegistry
+from aeros.kernel.algorithms.idempotency import IdempotencyRegistry, IdempotencyStore
 from aeros.kernel.ingestion.realtime_contracts import (
     IngestionAcknowledgement,
     IngestionMode,
@@ -35,11 +35,13 @@ class EventApiConnector:
         tenant_id: str,
         site_id: str,
         *,
-        idempotency_registry: IdempotencyRegistry | None = None,
+        idempotency_registry: IdempotencyStore | None = None,
+        bronze_writer=None,
     ) -> None:
         self.tenant_id = tenant_id
         self.site_id = site_id
         self._registry = idempotency_registry or IdempotencyRegistry()
+        self._bronze_writer = bronze_writer
         self._processed: list[IngestionAcknowledgement] = []
 
     def ingest_event(self, event: SourceSystemEvent) -> IngestionAcknowledgement:
@@ -79,6 +81,11 @@ class EventApiConnector:
             accepted=True,
             rejection_reason='duplicate' if was_duplicate else '',
         )
+        bronze_path = ""
+        if self._bronze_writer and not was_duplicate:
+            bronze_path = self._bronze_writer.write_source_event(event, fingerprint)
+        if bronze_path:
+            ack.output_reference = bronze_path
         self._processed.append(ack)
         return ack
 

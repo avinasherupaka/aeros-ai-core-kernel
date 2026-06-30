@@ -138,6 +138,26 @@ def build_demo_ontology_context(scenario_id: str) -> OntologyContext:
         entities.append(OntologyEntity(entity_type="QualityRisk", entity_id=risk_id, name=risk))
         relationships.append(OntologyRelationship(source_id=equipment_id, source_type="Equipment", relationship_type="HAS_RISK", target_id=risk_id, target_type="QualityRisk"))
 
+    if any("documentum" in source.lower() for source in scenario.source_systems):
+        dms_id = f"dms::{scenario.scenario_id}"
+        entities.append(
+            OntologyEntity(
+                entity_type="DMSDocument",
+                entity_id=dms_id,
+                name=f"Documentum evidence package for {scenario.name}",
+                attributes={"system": "OpenText Documentum"},
+            )
+        )
+        relationships.append(
+            OntologyRelationship(
+                source_id=dms_id,
+                source_type="DMSDocument",
+                relationship_type="EVIDENCES",
+                target_id=equipment_id,
+                target_type="Equipment",
+            )
+        )
+
     return OntologyContext(
         tenant_id=tenant_id,
         site_id=site_id,

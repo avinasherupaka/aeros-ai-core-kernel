@@ -20,6 +20,7 @@ from aeros.kernel.bedrock.runtime_contracts import (
     BedrockRuntimeMode,
     BedrockToolInvocation,
 )
+from aeros.kernel.bedrock.runtime_client import BedrockRuntimeClient
 
 __all__ = [
     'GuardrailResult',
@@ -36,4 +37,5 @@ __all__ = [
     'BedrockResponseEnvelope',
     'BedrockRuntimeMode',
     'BedrockToolInvocation',
+    'BedrockRuntimeClient',
 ]

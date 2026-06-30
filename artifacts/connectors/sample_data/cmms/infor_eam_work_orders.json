@@ -1,0 +1,9 @@
+[
+  {
+    "work_order_id": "WO-INF-9001",
+    "asset_id": "BIO-201",
+    "completed_at": "2026-05-28T10:00:00+00:00",
+    "status": "complete",
+    "summary": "Bioreactor agitator preventive maintenance completed."
+  }
+]

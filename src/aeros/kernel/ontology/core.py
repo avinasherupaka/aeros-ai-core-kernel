@@ -34,6 +34,7 @@ CORE_ONTOLOGY_TYPES = [
     "LabIPQCResult",
     "SOPClause",
     "Specification",
+    "DMSDocument",
     "QualityRisk",
     "EvidenceItem",
     "HumanReview",

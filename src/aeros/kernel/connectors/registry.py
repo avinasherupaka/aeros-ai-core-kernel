@@ -4,6 +4,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from aeros.kernel.connectors.cmms_erp_lims_pack import CMMSConnector, ERPConnector, LIMSConnector
+from aeros.kernel.connectors.dms_pack import DocumentumConnector
 from aeros.kernel.connectors.historian_pack import HistorianConnector
 from aeros.kernel.connectors.manifests import (
     ConnectorCapability,
@@ -109,6 +110,38 @@ def default_connector_registry() -> ConnectorRegistry:
         )
     )
     registry.register(
+        HistorianConnector(
+            ConnectorManifest(
+                connector_id="historian-ignition-live",
+                connector_type="historian",
+                version="0.1.0",
+                tenant_id="acme",
+                site_id="hyd-01",
+                source_system="Ignition Historian",
+                maturity_level=ConnectorMaturityLevel.L3,
+                pack_name="historian",
+                capabilities=_base_capabilities(ConnectorCapability.REPLAY, ConnectorCapability.VALIDATE_CONTRACT),
+                data_contracts=[
+                    _contract(
+                        "historian_parameter_observation",
+                        "parameter_observation",
+                        {"tag": "BIO-201.TEMP", "value": 36.9, "unit": "degC", "observed_at": "2026-06-01T10:00:00+00:00"},
+                        ["tag", "value", "unit", "observed_at"],
+                    )
+                ],
+                mapping_rules=[
+                    _rule("tag", "tag", required=True),
+                    _rule("timestamp", "observed_at", required=True),
+                    _rule("value", "value", required=True),
+                ],
+                metadata={"targets": ["Ignition Historian"], "connectivity": "REST API"},
+            ),
+            _sample_path("historian", "ignition_samples.json"),
+            live_api_base_url="https://ignition.example.local",
+            live_api_path="/api/v1/tags/history",
+        )
+    )
+    registry.register(
         QMSConnector(
             ConnectorManifest(
                 connector_id="qms-veeva-vault",
@@ -128,22 +161,43 @@ def default_connector_registry() -> ConnectorRegistry:
         )
     )
     registry.register(
+        QMSConnector(
+            ConnectorManifest(
+                connector_id="qms-veeva-vault-live",
+                connector_type="qms",
+                version="0.1.0",
+                tenant_id="acme",
+                site_id="hyd-01",
+                source_system="Veeva Vault QMS",
+                maturity_level=ConnectorMaturityLevel.L3,
+                pack_name="qms_mes",
+                capabilities=_base_capabilities(ConnectorCapability.REPLAY, ConnectorCapability.VALIDATE_CONTRACT),
+                data_contracts=[_contract("qms_quality_record", "qms_quality_record", {"deviation_id": "DEV-2101", "status": "open"}, ["deviation_id", "status"])],
+                mapping_rules=[_rule("deviation_id", "source_record_id", required=True), _rule("opened_at", "event_time", required=True)],
+                metadata={"targets": ["Veeva Vault QMS"], "connectivity": "Vault REST API"},
+            ),
+            _sample_path("qms", "veeva_deviations.json"),
+            live_api_base_url="https://vault.veeva.example.com",
+            live_api_path="/api/v24.1/objects/deviations",
+        )
+    )
+    registry.register(
         MESConnector(
             ConnectorManifest(
-                connector_id="mes-pasx",
+                connector_id="mes-pharmasuite",
                 connector_type="mes",
                 version="0.1.0",
                 tenant_id="acme",
                 site_id="hyd-01",
-                source_system="Körber/Werum PAS-X",
+                source_system="Rockwell PharmaSuite",
                 maturity_level=ConnectorMaturityLevel.L2,
                 pack_name="qms_mes",
                 capabilities=_base_capabilities(ConnectorCapability.VALIDATE_CONTRACT),
                 data_contracts=[_contract("mes_batch_timeline", "mes_batch_timeline", {"batch_id": "BATCH-OSD-2026-001", "phase": "compression", "event_time": "2026-06-01T10:05:00+00:00"}, ["batch_id", "phase", "event_time"])],
                 mapping_rules=[_rule("timeline_id", "source_record_id", required=True), _rule("timestamp", "event_time", required=True)],
-                metadata={"targets": ["Siemens Opcenter", "Körber/Werum PAS-X", "Rockwell PharmaSuite", "Tulip"]},
+                metadata={"targets": ["Rockwell PharmaSuite", "Siemens Opcenter", "Körber/Werum PAS-X", "Tulip"]},
             ),
-            _sample_path("mes", "pasx_batch_timeline.json"),
+            _sample_path("mes", "pharmasuite_batch_timeline.json"),
         )
     )
     registry.register(
@@ -185,6 +239,48 @@ def default_connector_registry() -> ConnectorRegistry:
         )
     )
     registry.register(
+        ERPConnector(
+            ConnectorManifest(
+                connector_id="erp-sap-s4-odata-live",
+                connector_type="erp",
+                version="0.1.0",
+                tenant_id="acme",
+                site_id="hyd-01",
+                source_system="SAP S/4HANA OData",
+                maturity_level=ConnectorMaturityLevel.L3,
+                pack_name="cmms_erp_lims",
+                capabilities=_base_capabilities(ConnectorCapability.REPLAY, ConnectorCapability.VALIDATE_CONTRACT),
+                data_contracts=[_contract("erp_batch_genealogy", "erp_batch_genealogy", {"batch_id": "BATCH-OSD-2026-001", "product_id": "TAB-500MG", "material_lot_id": "LOT-API-100"}, ["batch_id", "product_id", "material_lot_id"])],
+                mapping_rules=[_rule("genealogy_id", "source_record_id", required=True), _rule("released_at", "released_at")],
+                metadata={"targets": ["SAP S/4HANA"], "connectivity": "OData v4"},
+            ),
+            _sample_path("erp", "sap_materials.json"),
+            live_api_base_url="https://sap.example.local",
+            live_api_path="/sap/opu/odata4/areos/genealogy",
+        )
+    )
+    registry.register(
+        CMMSConnector(
+            ConnectorManifest(
+                connector_id="cmms-infor-eam-live",
+                connector_type="cmms",
+                version="0.1.0",
+                tenant_id="acme",
+                site_id="hyd-01",
+                source_system="Infor EAM",
+                maturity_level=ConnectorMaturityLevel.L3,
+                pack_name="cmms_erp_lims",
+                capabilities=_base_capabilities(ConnectorCapability.REPLAY, ConnectorCapability.VALIDATE_CONTRACT),
+                data_contracts=[_contract("cmms_work_order", "cmms_work_order", {"work_order_id": "WO-9001", "asset_id": "BIO-201", "completed_at": "2026-05-28T10:00:00+00:00"}, ["work_order_id", "asset_id", "completed_at"])],
+                mapping_rules=[_rule("work_order_id", "source_record_id", required=True), _rule("completed_at", "completed_at", required=True)],
+                metadata={"targets": ["Infor EAM"], "connectivity": "REST API"},
+            ),
+            _sample_path("cmms", "infor_eam_work_orders.json"),
+            live_api_base_url="https://infor-eam.example.local",
+            live_api_path="/api/workorders",
+        )
+    )
+    registry.register(
         LIMSConnector(
             ConnectorManifest(
                 connector_id="lims-labware",
@@ -201,6 +297,48 @@ def default_connector_registry() -> ConnectorRegistry:
                 metadata={"targets": ["LabWare LIMS", "STARLIMS", "Thermo SampleManager", "Waters Empower", "Chromeleon/OpenLab"]},
             ),
             _sample_path("lims", "labware_results.json"),
+        )
+    )
+    registry.register(
+        LIMSConnector(
+            ConnectorManifest(
+                connector_id="lims-labware-live",
+                connector_type="lims",
+                version="0.1.0",
+                tenant_id="acme",
+                site_id="hyd-01",
+                source_system="LabWare LIMS",
+                maturity_level=ConnectorMaturityLevel.L3,
+                pack_name="cmms_erp_lims",
+                capabilities=_base_capabilities(ConnectorCapability.REPLAY, ConnectorCapability.VALIDATE_CONTRACT),
+                data_contracts=[_contract("lims_result", "lims_result", {"sample_id": "S-100", "parameter": "bioburden", "result": 0.0}, ["sample_id", "parameter", "result"])],
+                mapping_rules=[_rule("result_id", "source_record_id", required=True), _rule("sampled_at", "sampled_at")],
+                metadata={"targets": ["LabWare LIMS"], "connectivity": "REST API"},
+            ),
+            _sample_path("lims", "labware_results.json"),
+            live_api_base_url="https://labware.example.local",
+            live_api_path="/api/results",
+        )
+    )
+    registry.register(
+        DocumentumConnector(
+            ConnectorManifest(
+                connector_id="dms-documentum-live",
+                connector_type="dms",
+                version="0.1.0",
+                tenant_id="acme",
+                site_id="hyd-01",
+                source_system="OpenText Documentum",
+                maturity_level=ConnectorMaturityLevel.L3,
+                pack_name="dms",
+                capabilities=_base_capabilities(ConnectorCapability.REPLAY, ConnectorCapability.VALIDATE_CONTRACT),
+                data_contracts=[_contract("dms_document", "dms_document", {"document_id": "DOC-1001", "title": "SOP-001"}, ["document_id", "title"])],
+                mapping_rules=[_rule("document_id", "source_record_id", required=True), _rule("effective_at", "effective_at")],
+                metadata={"targets": ["OpenText Documentum"], "connectivity": "D2 REST"},
+            ),
+            _sample_path("dms", "documentum_documents.json"),
+            live_api_base_url="https://documentum.example.local",
+            live_api_path="/d2/api/documents",
         )
     )
     return registry

@@ -18,6 +18,7 @@ from aeros.kernel.assurance.state_of_control import (
 from aeros.kernel.dossiers.apqr import APQRSection, build_apqr_section
 from aeros.kernel.dossiers.gmp_dossier import GMPDossier, build_gmp_dossier
 from aeros.kernel.models.canonical import AssuranceEvent, StateOfControlAssessment
+from aeros.kernel.models.canonical import EventType
 from aeros.kernel.ontology.industry_packs import build_demo_ontology_context, get_scenario_definition, list_industry_packs, load_scenario_library
 from aeros.kernel.workflows.deviation_workbench import DeviationWorkbenchView, build_deviation_queue
 from aeros.kernel.workflows.engineering_reliability_board import EngineeringReliabilityBoard, build_engineering_reliability_board
@@ -90,6 +91,8 @@ def _build_bundle(scenario_id: str) -> DemoEventBundle:
     event.required_evidence = scenario.evidence_checklist
     event.risk_ids = [risk.lower().replace(" ", "_") for risk in scenario.quality_risks]
     event.timestamp = assessment.assessed_at
+    if any(system.lower().startswith("labware") or "lims" in system.lower() for system in scenario.source_systems):
+        event.event_type = EventType.LIMS_RESULT_ALERT
 
     available_evidence = scenario.evidence_checklist[: max(1, len(scenario.evidence_checklist) - 1)]
     impact = evaluate_event_impact(event, context, scenario, available_evidence=available_evidence)

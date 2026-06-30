@@ -1,4 +1,5 @@
 from aeros.kernel.connectors.cmms_erp_lims_pack import CMMSConnector, ERPConnector, LIMSConnector
+from aeros.kernel.connectors.dms_pack import DocumentumConnector
 from aeros.kernel.connectors.file_import_connector import FileImportConnector
 from aeros.kernel.connectors.historian_pack import HistorianConnector
 from aeros.kernel.connectors.manifests import (
@@ -37,6 +38,7 @@ __all__ = [
     "ConnectorRunResult",
     "ConnectorValidationResult",
     "ERPConnector",
+    "DocumentumConnector",
     "FileImportConnector",
     "HistorianConnector",
     "LIMSConnector",
