@@ -11,5 +11,8 @@
     "biotech_cold_room_temperature_excursion",
     "food_allergen_cross_contact_risk",
     "advanced_materials_dry_room_humidity_excursion"
+  ],
+  "scenario_ids": [
+    "biotech_bioreactor_temperature_excursion"
   ]
 }

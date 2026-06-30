@@ -42,6 +42,7 @@ def build_apqr_section(
     impacts: list[ImpactAssessment],
     reliability_insights: list[ReliabilityInsight],
     period: str = "2026-H1",
+    human_review_statement: str = "All APQR/PQR entries require human review and approval before regulatory submission. AI assists drafting; humans approve quality decisions.",
     output_root: str | Path | None = None,
 ) -> APQRSection:
     utility_environmental_events = [
@@ -103,8 +104,6 @@ def build_apqr_section(
         for impact in impacts
         for item in impact.missing_evidence
     ]
-
-    human_review_statement = "All APQR/PQR entries require human review and approval before regulatory submission. AI assists drafting; humans approve quality decisions."
 
     markdown_path = ""
     json_path = ""

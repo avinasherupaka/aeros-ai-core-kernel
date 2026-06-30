@@ -16,12 +16,12 @@ import json
 import paho.mqtt.client as mqtt
 
 
-def run_subscriber(topic: str = "areos/#", host: str = "localhost", port: int = 1883):
+def run_subscriber(topic: str = "areos/#", host: str = "localhost", port: int = 1883, qos: int = 1):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
     def on_connect(client, userdata, flags, reason_code, properties):
         print(f"[subscriber] Connected to {host}:{port} — subscribing to '{topic}'")
-        client.subscribe(topic)
+        client.subscribe(topic, qos=qos)
 
     def on_message(client, userdata, msg):
         payload = msg.payload.decode("utf-8")

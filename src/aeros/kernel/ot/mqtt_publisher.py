@@ -22,16 +22,17 @@ from aeros.kernel.ot.sparkplug_envelope import SparkplugInspiredEnvelope
 
 
 class MQTTPublisher:
-    def __init__(self, host: str = "localhost", port: int = 1883):
+    def __init__(self, host: str = "localhost", port: int = 1883, qos: int = 1):
         self.host = host
         self.port = port
+        self.qos = qos
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
     def publish(self, topic: str, envelope: SparkplugInspiredEnvelope) -> None:
         """Connect, publish one message, disconnect."""
         self.client.connect(self.host, self.port, 60)
         payload = envelope.model_dump_json()
-        self.client.publish(topic, payload=payload, qos=0)
+        self.client.publish(topic, payload=payload, qos=self.qos)
         self.client.disconnect()
 
     def publish_many(self, topic: str, envelopes: list[SparkplugInspiredEnvelope]) -> None:
@@ -40,6 +41,6 @@ class MQTTPublisher:
         self.client.loop_start()
         for envelope in envelopes:
             payload = envelope.model_dump_json()
-            self.client.publish(topic, payload=payload, qos=0)
+            self.client.publish(topic, payload=payload, qos=self.qos)
         self.client.loop_stop()
         self.client.disconnect()

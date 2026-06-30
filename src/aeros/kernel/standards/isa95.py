@@ -30,7 +30,7 @@ class Area(BaseModel):
     site_id: str
     area_id: str
     name: str
-    area_type: str = ""  # e.g. "osd_manufacturing", "sterile_fill", "warehouse"
+    area_type: str = ""  # e.g. "osd_manufacturing", "sterile_fill", "warehouse", "bioreactor_suite", "fill_finish", "cleanroom", "dms_control_room"
 
 
 class Room(BaseModel):

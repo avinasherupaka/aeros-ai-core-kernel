@@ -30,7 +30,9 @@ resource "aws_iot_policy" "tenant_site" {
       {
         Effect = "Allow"
         Action = ["iot:Connect"]
-        Resource = ["*"]
+        Resource = [
+          "arn:aws:iot:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:client/${var.client_id_prefix}-${var.tenant_id}-${var.site_id}-*"
+        ]
       },
       {
         Effect = "Allow"

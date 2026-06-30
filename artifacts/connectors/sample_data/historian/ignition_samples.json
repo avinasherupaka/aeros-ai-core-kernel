@@ -1,0 +1,18 @@
+[
+  {
+    "record_id": "IGN-1",
+    "tag": "BIO-201.TEMP",
+    "asset_id": "BIO-201",
+    "timestamp": "2026-06-01T10:00:00+00:00",
+    "value": 36.9,
+    "unit": "degC"
+  },
+  {
+    "record_id": "IGN-2",
+    "tag": "BIO-201.TEMP",
+    "asset_id": "BIO-201",
+    "timestamp": "2026-06-01T10:05:00+00:00",
+    "value": 38.2,
+    "unit": "degC"
+  }
+]

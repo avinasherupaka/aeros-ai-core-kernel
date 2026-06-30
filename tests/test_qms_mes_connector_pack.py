@@ -11,7 +11,7 @@ def test_qms_connector_normalizes_deviation_records():
 
 
 def test_mes_connector_normalizes_batch_timeline_records():
-    connector = default_connector_registry().get("mes-pasx")
+    connector = default_connector_registry().get("mes-pharmasuite")
 
     records = connector.pull()
 

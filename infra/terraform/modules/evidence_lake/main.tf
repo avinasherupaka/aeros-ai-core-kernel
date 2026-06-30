@@ -13,8 +13,9 @@ resource "aws_kms_alias" "evidence" {
 }
 
 resource "aws_s3_bucket" "evidence" {
-  bucket = var.bucket_name
-  tags   = var.tags
+  bucket              = var.bucket_name
+  object_lock_enabled = var.enable_object_lock
+  tags                = var.tags
 }
 
 resource "aws_s3_bucket_versioning" "evidence" {
@@ -43,5 +44,14 @@ resource "aws_s3_bucket_public_access_block" "evidence" {
   restrict_public_buckets = true
 }
 
-# NOTE: Object Lock can be enabled for immutable-style evidence retention,
-# but must be configured at bucket creation time and aligned to customer policy.
+resource "aws_s3_bucket_object_lock_configuration" "evidence" {
+  count  = var.enable_object_lock ? 1 : 0
+  bucket = aws_s3_bucket.evidence.id
+
+  rule {
+    default_retention {
+      mode = "GOVERNANCE"
+      days = var.object_lock_retention_days
+    }
+  }
+}

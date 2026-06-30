@@ -18,6 +18,7 @@ from aeros.kernel.assurance.state_of_control import (
 from aeros.kernel.dossiers.apqr import APQRSection, build_apqr_section
 from aeros.kernel.dossiers.gmp_dossier import GMPDossier, build_gmp_dossier
 from aeros.kernel.models.canonical import AssuranceEvent, StateOfControlAssessment
+from aeros.kernel.models.canonical import EventType
 from aeros.kernel.ontology.industry_packs import build_demo_ontology_context, get_scenario_definition, list_industry_packs, load_scenario_library
 from aeros.kernel.workflows.deviation_workbench import DeviationWorkbenchView, build_deviation_queue
 from aeros.kernel.workflows.engineering_reliability_board import EngineeringReliabilityBoard, build_engineering_reliability_board
@@ -78,7 +79,29 @@ def _build_bundle(scenario_id: str) -> DemoEventBundle:
     )
     assessment.assessment_id = f"assessment::{scenario_id}"
     events = build_assurance_events_from_assessment(assessment)
-    event = events[0]
+    if not events:
+        event = AssuranceEvent(
+            event_id=f"event::{scenario_id}",
+            tenant_id=context.tenant_id,
+            site_id=context.site_id,
+            area_id=default_context.get("area_id", "area_01"),
+            event_type=EventType.ALERT_TRIGGERED,
+            source_system=scenario.source_systems[0] if scenario.source_systems else "demo",
+            asset_id=default_context.get("equipment_id") or default_context.get("utility_system_id", "asset_01"),
+            metric=assessment.metric,
+            value=assessment.peak_value,
+            unit=scenario.sample_limits.get(assessment.metric).unit if assessment.metric in scenario.sample_limits else None,
+            batch_id=default_context.get("batch_id"),
+            product_id=default_context.get("product_id"),
+            room_id=default_context.get("room_id"),
+            material_lot_id=default_context.get("material_lot_id"),
+            operation=default_context.get("operation"),
+            phase=default_context.get("phase"),
+            severity=assessment.severity,
+            status=assessment.outcome.value,
+        )
+    else:
+        event = events[0]
     event.event_id = f"event::{scenario_id}"
     event.asset_id = default_context.get("equipment_id") or event.asset_id
     event.room_id = default_context.get("room_id")
@@ -90,6 +113,8 @@ def _build_bundle(scenario_id: str) -> DemoEventBundle:
     event.required_evidence = scenario.evidence_checklist
     event.risk_ids = [risk.lower().replace(" ", "_") for risk in scenario.quality_risks]
     event.timestamp = assessment.assessed_at
+    if any(system.lower().startswith("labware") or "lims" in system.lower() for system in scenario.source_systems):
+        event.event_type = EventType.LIMS_RESULT_ALERT
 
     available_evidence = scenario.evidence_checklist[: max(1, len(scenario.evidence_checklist) - 1)]
     impact = evaluate_event_impact(event, context, scenario, available_evidence=available_evidence)

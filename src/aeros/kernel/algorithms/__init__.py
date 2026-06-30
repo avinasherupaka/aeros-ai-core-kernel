@@ -14,7 +14,7 @@ from aeros.kernel.algorithms.fingerprints import (
     EventFingerprintInput,
     compute_event_fingerprint,
 )
-from aeros.kernel.algorithms.idempotency import IdempotencyRecord, IdempotencyRegistry
+from aeros.kernel.algorithms.idempotency import DynamoDBIdempotencyRegistry, IdempotencyRecord, IdempotencyRegistry, IdempotencyStore
 from aeros.kernel.algorithms.rule_versioning import (
     DEFAULT_PROCESSING_CONTEXT,
     ProcessingContextVersion,
@@ -36,6 +36,8 @@ __all__ = [
     'compute_event_fingerprint',
     'IdempotencyRecord',
     'IdempotencyRegistry',
+    'IdempotencyStore',
+    'DynamoDBIdempotencyRegistry',
     'DEFAULT_PROCESSING_CONTEXT',
     'ProcessingContextVersion',
     'RuleCategory',

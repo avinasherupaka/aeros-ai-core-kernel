@@ -29,6 +29,7 @@ class EventType(str, Enum):
     ACTION_REQUIRED = "action_required"
     BATCH_EVENT = "batch_event"
     UTILITY_ANOMALY = "utility_anomaly"
+    LIMS_RESULT_ALERT = "lims_result_alert"
 
 
 class AssessmentOutcome(str, Enum):

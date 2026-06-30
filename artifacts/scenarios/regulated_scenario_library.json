@@ -757,6 +757,105 @@
             "operation": "storage",
             "phase": "hold"
           }
+        },
+        {
+          "scenario_id": "biotech_bioreactor_temperature_excursion",
+          "name": "Bioreactor temperature excursion",
+          "industry": "biotech_biologics",
+          "process_area": "Bioreactor Suite",
+          "description": "Bioreactor temperature excursion with LIMS out-of-spec confirmation and batch hold implications.",
+          "source_systems": [
+            "Ignition Historian",
+            "LabWare LIMS",
+            "Rockwell PharmaSuite"
+          ],
+          "source_protocols": [
+            "REST",
+            "API",
+            "MQTT"
+          ],
+          "affected_parameters": [
+            "bioreactor_temperature"
+          ],
+          "sample_limits": {
+            "bioreactor_temperature": {
+              "unit": "degC",
+              "validated_range": {
+                "low": 35.0,
+                "high": 37.5
+              },
+              "alert_limit": {
+                "high": 37.8
+              },
+              "action_limit": {
+                "high": 38.2
+              },
+              "critical_limit": {
+                "high": 38.7
+              }
+            }
+          },
+          "possible_impacted_entities": {
+            "products": [
+              "mab_gamma"
+            ],
+            "materials": [
+              "cell_culture_media_lot_44"
+            ],
+            "operations": [
+              "bioreactor_control"
+            ],
+            "phases": [
+              "culture_growth"
+            ]
+          },
+          "quality_risks": [
+            "potency shift",
+            "culture viability loss"
+          ],
+          "safety_risks": [
+            "overpressure risk"
+          ],
+          "compliance_risks": [
+            "batch hold workflow delay"
+          ],
+          "evidence_checklist": [
+            "historian trend",
+            "lims oos confirmation",
+            "qa disposition"
+          ],
+          "suggested_personas": [
+            "QA",
+            "Manufacturing",
+            "QC"
+          ],
+          "likely_source_records": [
+            "historian_tag_event",
+            "lims_result",
+            "mes_batch_timeline"
+          ],
+          "demo_triggers": [
+            {
+              "parameter": "bioreactor_temperature",
+              "breach_value": 38.4,
+              "duration_minutes": 15,
+              "quality": "GOOD"
+            }
+          ],
+          "default_context": {
+            "tenant_id": "acme_bio",
+            "site_id": "bio_hyd_01",
+            "area_id": "bioreactor_suite",
+            "room_id": "suite_201",
+            "equipment_id": "bioreactor_201",
+            "equipment_name": "Bioreactor 201",
+            "utility_system_id": "chilled_water_loop_2",
+            "batch_id": "BATCH-BIO-2026-014",
+            "product_id": "mab_gamma",
+            "material_lot_id": "LOT-MEDIA-44",
+            "operation": "bioreactor_control",
+            "phase": "culture_growth"
+          }
         }
       ]
     },

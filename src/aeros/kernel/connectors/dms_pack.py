@@ -8,15 +8,8 @@ from aeros.kernel.connectors.manifests import ConnectorHealth, ConnectorManifest
 from aeros.kernel.connectors.sdk import BaseConnector
 
 
-class _FileBackedConnector(BaseConnector):
-    def __init__(
-        self,
-        manifest: ConnectorManifest,
-        dataset_path: str,
-        *,
-        live_api_base_url: str = "",
-        live_api_path: str = "",
-    ):
+class DocumentumConnector(BaseConnector):
+    def __init__(self, manifest: ConnectorManifest, dataset_path: str, *, live_api_base_url: str = "", live_api_path: str = "/d2/api/documents"):
         super().__init__(manifest)
         self.dataset_path = Path(dataset_path)
         self.live_api_base_url = live_api_base_url.rstrip("/")
@@ -48,43 +41,17 @@ class _FileBackedConnector(BaseConnector):
             for record in records
         ]
 
-
-class QMSConnector(_FileBackedConnector):
     def normalize(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [
             self.with_lineage(
                 {
-                    "record_type": "qms_quality_record",
-                    "source_record_id": record["deviation_id"],
-                    "deviation_id": record["deviation_id"],
-                    "quality_record_type": record["record_type"],
+                    "record_type": "dms_document",
+                    "source_record_id": record["document_id"],
+                    "document_id": record["document_id"],
+                    "title": record["title"],
+                    "document_type": record.get("document_type", "GxP"),
                     "status": record["status"],
-                    "batch_id": record.get("batch_id"),
-                    "site_id": record.get("site_id", self.manifest.site_id),
-                    "event_time": record["opened_at"],
-                    "summary": record["summary"],
-                }
-            )
-            for record in records
-        ]
-
-    def pull(self) -> list[dict[str, Any]]:
-        return self.normalize(self.extract())
-
-
-class MESConnector(_FileBackedConnector):
-    def normalize(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            self.with_lineage(
-                {
-                    "record_type": "mes_batch_timeline",
-                    "source_record_id": record["timeline_id"],
-                    "batch_id": record["batch_id"],
-                    "product_id": record["product_id"],
-                    "phase": record["phase"],
-                    "operation": record["operation"],
-                    "event_time": record["timestamp"],
-                    "status": record["status"],
+                    "effective_at": record.get("effective_at"),
                 }
             )
             for record in records
