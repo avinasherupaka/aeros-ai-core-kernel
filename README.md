@@ -6,6 +6,7 @@
 - `docs/architecture/mission_critical_target_architecture.md`
 - `docs/architecture/master_architecture_diagram.md`
 - `docs/runbooks/00_FULL_SYSTEM_TEST_AND_DEMO_GUIDE.md`
+- `docs/runbooks/00_BIOPHARMA_E2E_DETERMINISTIC_TEST_GUIDE.md`
 
 Areos.ai = **Assurance, Reliability, Efficiency Operating System**.
 
