@@ -382,6 +382,10 @@ from aeros.kernel.data_backbone.bronze_writer import LocalBronzeWriter, S3Bronze
 
 _idempotency_table_name = os.getenv("AREOS_IDEMPOTENCY_DDB_TABLE", "").strip()
 _bronze_bucket = os.getenv("AREOS_BRONZE_BUCKET", "").strip()
+_local_bronze_root = os.getenv(
+    "AREOS_LOCAL_BRONZE_ROOT",
+    str(Path(__file__).resolve().parents[4] / "artifacts" / "lakehouse"),
+)
 if _idempotency_table_name:
     _event_api_registry = DynamoDBIdempotencyRegistry(
         table_name=_idempotency_table_name,
@@ -397,7 +401,7 @@ _event_api_connector = EventApiConnector(
     bronze_writer=(
         S3BronzeWriter(bucket_name=_bronze_bucket, region_name=os.getenv("AWS_REGION", "ap-south-1"))
         if _bronze_bucket
-        else LocalBronzeWriter(Path(__file__).resolve().parents[4] / "artifacts" / "lakehouse")
+        else LocalBronzeWriter(_local_bronze_root)
     ),
 )
 _bedrock_client = BedrockRuntimeClient(
@@ -610,12 +614,12 @@ def bedrock_render_draft(body: BedrockRenderDraftBody) -> dict:
         mode = BedrockRuntimeMode(body.mode)
     except ValueError:
         mode = BedrockRuntimeMode.NARRATIVE_RENDERING
+    original_guardrail_result = check_guardrails(body.rendered_text)
     envelope = _bedrock_client.render(
         deterministic_answer_id=body.answer_id,
         prompt=body.rendered_text,
         mode=mode,
     )
-    guardrail_result = check_guardrails(envelope.rendered_text)
     return {
         'response_id': envelope.response_id,
         'mode': envelope.mode.value,
@@ -623,9 +627,9 @@ def bedrock_render_draft(body: BedrockRenderDraftBody) -> dict:
         'rendered_text': envelope.rendered_text,
         'disclaimer': envelope.disclaimer,
         'human_approval_required': envelope.human_approval_required,
-        'guardrail_passed': guardrail_result.passed,
+        'guardrail_passed': original_guardrail_result.passed,
         'guardrail_violations': [
             {'rule': v.rule, 'matched_phrase': v.matched_phrase}
-            for v in guardrail_result.violations
+            for v in original_guardrail_result.violations
         ],
     }

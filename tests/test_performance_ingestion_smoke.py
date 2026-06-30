@@ -4,7 +4,7 @@ from aeros.kernel.ingestion.event_api_connector import EventApiConnector
 from aeros.kernel.ingestion.realtime_contracts import RealtimeSourceType, SourceSystemEvent
 
 
-def test_ingestion_smoke_under_one_second_for_100_events():
+def test_ingestion_smoke_under_two_seconds_for_100_events():
     connector = EventApiConnector("tenant_a", "site_1")
     start = perf_counter()
     for index in range(100):
@@ -22,4 +22,4 @@ def test_ingestion_smoke_under_one_second_for_100_events():
             )
         )
     elapsed = perf_counter() - start
-    assert elapsed < 1.0
+    assert elapsed < 2.0

@@ -45,22 +45,25 @@ class BedrockRuntimeClient:
         except Exception:
             return prompt
 
-        client = boto3.client("bedrock-runtime")
-        body = {"inputText": prompt}
-        invoke_kwargs = {
-            "modelId": self.model_id,
-            "contentType": "application/json",
-            "accept": "application/json",
-            "body": json.dumps(body),
-        }
-        if self.guardrail_id:
-            invoke_kwargs["guardrailIdentifier"] = self.guardrail_id
-        if self.guardrail_version:
-            invoke_kwargs["guardrailVersion"] = self.guardrail_version
-        response = client.invoke_model(**invoke_kwargs)
-        payload = json.loads(response["body"].read().decode("utf-8"))
-        if isinstance(payload, dict):
-            for key in ("outputText", "completion", "generation"):
-                if key in payload and payload[key]:
-                    return str(payload[key])
+        try:
+            client = boto3.client("bedrock-runtime")
+            body = {"inputText": prompt}
+            invoke_kwargs = {
+                "modelId": self.model_id,
+                "contentType": "application/json",
+                "accept": "application/json",
+                "body": json.dumps(body),
+            }
+            if self.guardrail_id:
+                invoke_kwargs["guardrailIdentifier"] = self.guardrail_id
+            if self.guardrail_version:
+                invoke_kwargs["guardrailVersion"] = self.guardrail_version
+            response = client.invoke_model(**invoke_kwargs)
+            payload = json.loads(response["body"].read().decode("utf-8"))
+            if isinstance(payload, dict):
+                for key in ("outputText", "completion", "generation"):
+                    if key in payload and payload[key]:
+                        return str(payload[key])
+        except Exception:
+            return "Bedrock invocation failed; deterministic content returned for human review."
         return prompt

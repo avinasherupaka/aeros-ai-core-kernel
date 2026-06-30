@@ -79,7 +79,29 @@ def _build_bundle(scenario_id: str) -> DemoEventBundle:
     )
     assessment.assessment_id = f"assessment::{scenario_id}"
     events = build_assurance_events_from_assessment(assessment)
-    event = events[0]
+    if not events:
+        event = AssuranceEvent(
+            event_id=f"event::{scenario_id}",
+            tenant_id=context.tenant_id,
+            site_id=context.site_id,
+            area_id=default_context.get("area_id", "area_01"),
+            event_type=EventType.ALERT_TRIGGERED,
+            source_system=scenario.source_systems[0] if scenario.source_systems else "demo",
+            asset_id=default_context.get("equipment_id") or default_context.get("utility_system_id", "asset_01"),
+            metric=assessment.metric,
+            value=assessment.peak_value,
+            unit=scenario.sample_limits.get(assessment.metric).unit if assessment.metric in scenario.sample_limits else None,
+            batch_id=default_context.get("batch_id"),
+            product_id=default_context.get("product_id"),
+            room_id=default_context.get("room_id"),
+            material_lot_id=default_context.get("material_lot_id"),
+            operation=default_context.get("operation"),
+            phase=default_context.get("phase"),
+            severity=assessment.severity,
+            status=assessment.outcome.value,
+        )
+    else:
+        event = events[0]
     event.event_id = f"event::{scenario_id}"
     event.asset_id = default_context.get("equipment_id") or event.asset_id
     event.room_id = default_context.get("room_id")

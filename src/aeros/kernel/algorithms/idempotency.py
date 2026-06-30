@@ -99,16 +99,28 @@ class DynamoDBIdempotencyRegistry:
             return True, existing
 
         now = datetime.now(timezone.utc)
-        self._table.put_item(
-            Item={
-                "fingerprint": fingerprint,
-                "output_reference": output_reference,
-                "processor_version": processor_version,
-                "processed_at": now.isoformat(),
-                "reprocessing_count": 0,
-            },
-            ConditionExpression="attribute_not_exists(fingerprint)",
-        )
+        try:
+            self._table.put_item(
+                Item={
+                    "fingerprint": fingerprint,
+                    "output_reference": output_reference,
+                    "processor_version": processor_version,
+                    "processed_at": now.isoformat(),
+                    "reprocessing_count": 0,
+                },
+                ConditionExpression="attribute_not_exists(fingerprint)",
+            )
+        except Exception:
+            raced = self.get_record(fingerprint)
+            if raced:
+                raced.reprocessing_count += 1
+                self._table.update_item(
+                    Key=self._item_key(fingerprint),
+                    UpdateExpression="SET reprocessing_count = :count",
+                    ExpressionAttributeValues={":count": raced.reprocessing_count},
+                )
+                return True, raced
+            raise
         return False, IdempotencyRecord(
             fingerprint=fingerprint,
             output_reference=output_reference,
