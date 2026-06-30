@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from aeros.kernel.simulation.e2e_magic_suite import run_magic_e2e_suite
 
 
@@ -13,7 +11,10 @@ def test_run_magic_e2e_suite_creates_evidence_and_summary(tmp_path):
     assert summary["checks"]["package_completeness_score"] >= 0.7
     assert summary["checks"]["qa_agent_human_approval_required"] is True
 
-    run_root = Path(summary["run_root"])
+    run_roots = [path for path in tmp_path.iterdir() if path.is_dir()]
+    assert len(run_roots) == 1
+    run_root = run_roots[0]
+    assert summary["run_root"] == str(run_root)
     assert run_root.exists()
     assert (run_root / "summary.json").exists()
     assert (run_root / "01_preconditions" / "preconditions.json").exists()
