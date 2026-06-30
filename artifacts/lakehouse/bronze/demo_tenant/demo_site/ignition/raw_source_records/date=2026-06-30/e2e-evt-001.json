@@ -1,0 +1,11 @@
+{
+  "event_id": "e2e-evt-001",
+  "fingerprint": "763129d8fac2b903a23323059b7deae29d676a4908ee44426853e098599a4141",
+  "source_system": "ignition",
+  "source_type": "api_polling",
+  "timestamp": "2026-06-01T10:00:00+00:00",
+  "parameter": "bioreactor_temperature",
+  "value": "38.4",
+  "unit": "degC",
+  "raw_payload": {}
+}
