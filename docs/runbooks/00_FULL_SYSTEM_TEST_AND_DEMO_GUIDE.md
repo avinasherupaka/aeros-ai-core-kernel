@@ -1,323 +1,240 @@
-# 00 Full System Test and Demo Guide
+# 00 Full System Test and Demo Guide (AWS Dev Environment First)
 
-This is the single end-to-end setup, test, and demo guide for the current repository state.
+This is the master end-to-end guide for running Areos in an **AWS dev environment** for client-style demo/test execution.
 
-## 1. What this repo contains and does not yet contain
+> Operator stance: run all commands from AWS-hosted execution (CloudShell, EC2 via SSM, CodeBuild runner, or GitHub Actions runner). Do not depend on a user laptop.
 
-Contains:
-- Local deterministic sandbox for ontology, assurance engines, dossiers, workflows, connectors, and persona agents.
-- AWS-native Terraform and Greengrass V2 architecture scaffolding.
-- Local sample datasets for Phase 6 connector testing.
+## 1) Current state summary
 
-Does not yet contain:
-- Live production integrations to enterprise source systems.
-- Required Bedrock credentials/runtime for hosted agent execution.
-- A claim of automatic 21 CFR Part 11 compliance.
+Included now:
+- Deterministic assurance kernel, dossier/workflow engines, API, and test harness.
+- Terraform scaffolding for tenant-site dev cell (`infra/terraform/envs/dev`).
+- Connector packs with sample datasets plus live connector metadata.
+- Deterministic algorithms for fingerprinting/idempotency and answer generation.
 
-## 2. Architecture overview
+Not yet fully productized:
+- Full live enterprise connector credential orchestration and customer-specific mappings.
+- Complete managed production deployment stack for all runtime services.
+- Automatic 21 CFR Part 11 compliance claims (customer CSV still required).
 
-- Local sandbox/test harness: `src/aeros/kernel/*`, `artifacts/*`, `tests/*`
-- AWS-native tenant-site cell runtime: `infra/terraform/*`
-- Greengrass V2 edge architecture: `edge/greengrass/*`, `docs/architecture/greengrass_v2_edge_gateway.md`
-- Connector ecosystem: `src/aeros/kernel/connectors/*`
-- Assurance engines: `src/aeros/kernel/assurance/*`
-- Evidence package and control plane: `src/aeros/kernel/dossiers/*`, `src/aeros/kernel/workflows/*`, `src/aeros/kernel/api/main.py`
-- Deterministic agents: `src/aeros/kernel/agents/*`
+## 2) AWS-only execution baseline
 
-## 3. Prerequisites
-
-- macOS or Linux shell tools
+Run from an AWS-hosted shell with:
 - Python 3.11+
-- Terraform
-- AWS CLI
-- AWS account/profile for dev-cell validation only
-- GitHub OIDC understanding for CI/CD docs review
+- Terraform >= 1.6
+- AWS CLI v2
+- Access to target dev account/role
 
-## 4. Local setup
+Repository path (example runner):
 
 ```bash
 cd /home/runner/work/aeros-ai-core-kernel/aeros-ai-core-kernel
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
 python -m pip install -e '.[dev]'
 pytest -q
 ```
 
-## 5. Local sandbox tests
+## 3) Live system prerequisites + fallback model
+
+### 3.1 Required target integrations for live simulation
+
+Prepare these interfaces for customer/live mode:
+- Veeva Vault (OAuth2) — QMS deviations
+- SAP S/4HANA OData — genealogy/material context
+- Ignition Historian REST — bioreactor/process telemetry
+- Rockwell PharmaSuite REST/API — MES batch timeline
+- Infor EAM REST — maintenance/work-order evidence
+
+### 3.2 Fallback behavior contract (dev-safe)
+
+Final expected behavior for demos/tests:
+- If live credentials/endpoints are **present**: use live interfaces.
+- If missing/blank: use connector sample datasets under `artifacts/connectors/sample_data/*`.
+- This keeps the same end-to-end flow, so customer credential onboarding is a configuration/mapping step, not a flow rewrite.
+
+## 4) Connector credential injection procedure (no secrets in repo)
+
+### 4.1 Secret sources (preferred order)
+1. AWS Secrets Manager / SSM Parameter Store
+2. Runtime environment variables injected by deploy platform
+3. Secure file upload fallback (certificate/key bundles), mounted at runtime
+
+### 4.2 Required secret payloads (minimum)
+- `VEEVA_VAULT_CLIENT_ID`, `VEEVA_VAULT_CLIENT_SECRET`, `VEEVA_VAULT_TOKEN_URL`, `VEEVA_VAULT_BASE_URL`
+- `SAP_ODATA_CLIENT_ID`, `SAP_ODATA_CLIENT_SECRET`, `SAP_ODATA_BASE_URL`
+- `IGNITION_API_KEY`, `IGNITION_BASE_URL`
+- `PHARMASUITE_API_KEY`, `PHARMASUITE_BASE_URL`
+- `INFOR_EAM_API_KEY`, `INFOR_EAM_BASE_URL`
+
+### 4.3 Injection example (AWS CLI + env export)
 
 ```bash
-bash scripts/run_topology.sh
-bash scripts/run_humidity_scenario.sh
-bash scripts/run_mqtt_demo.sh   # if MQTT demo tooling is desired locally
-pytest -q tests/test_humidity_scenario.py tests/test_uns.py
+export VEEVA_VAULT_CLIENT_ID="$(aws secretsmanager get-secret-value --secret-id areos/dev/veeva --query 'SecretString' --output text | jq -r '.client_id')"
+export VEEVA_VAULT_CLIENT_SECRET="$(aws secretsmanager get-secret-value --secret-id areos/dev/veeva --query 'SecretString' --output text | jq -r '.client_secret')"
+export SAP_ODATA_BASE_URL="$(aws ssm get-parameter --name /areos/dev/sap/base_url --with-decryption --query 'Parameter.Value' --output text)"
 ```
 
-## 6. Phase 1-2 AWS dev-cell plan/deploy testing
+### 4.4 File upload fallback (cert/key)
+- Upload cert/key to a secure runtime path (example: `/opt/areos/connector-secrets/`).
+- Inject only the file paths as env vars (never inline secret contents in config files).
+- Keep files out of git and out of Terraform state.
 
-Plan-first only:
+## 5) AWS dev-cell deploy and runtime wiring
 
 ```bash
-bash scripts/terraform_validate.sh
-cd infra/terraform
+cd /home/runner/work/aeros-ai-core-kernel/aeros-ai-core-kernel/infra/terraform/envs/dev
+cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform validate
-terraform plan -out dev.tfplan
+terraform plan -out tfplan
+terraform apply tfplan
+terraform output
 ```
 
-Guidance:
-- Review plans before any apply.
-- Use isolated dev accounts/profiles.
-- Tear down unused resources promptly.
-- Follow `docs/runbooks/08_teardown_and_cost_control.md` for spend control.
+Capture these outputs:
+- `iot_thing_name`
+- `event_metadata_table_name`
+- `evidence_bucket_name`
 
-## 7. Phase 3-5 product kernel tests
+Optional runtime env (only when using a DynamoDB table that matches the connector idempotency schema):
 
 ```bash
-python - <<'PY'
-from aeros.kernel.ontology.industry_packs import list_industry_packs
-from aeros.kernel.api.demo_data import list_demo_events, get_demo_event_bundle
-print(list_industry_packs())
-print(list_demo_events()[:3])
-bundle = get_demo_event_bundle('event::pharma_osd_humidity_excursion_compression')
-print(bundle.assessment.model_dump(mode='json'))
-print(bundle.impact.model_dump(mode='json'))
-print(bundle.evidence_graph.model_dump(mode='json'))
-print(bundle.dossier.model_dump(mode='json')['package_completeness_score'])
-PY
+export AREOS_BRONZE_BUCKET="$(terraform output -raw evidence_bucket_name)"
+export AWS_REGION="ap-south-1"
 ```
 
-APQR/PQR section:
+## 6) AWS post-deploy verification sequence
+
+### 6.1 IoT Thing certificate provisioning (outside Terraform)
 
 ```bash
-python - <<'PY'
-from aeros.kernel.agents.tools import AgentToolRegistry
-print(AgentToolRegistry().generate_apqr_section('enterprise_demo'))
-PY
+IOT_THING_NAME="$(terraform output -raw iot_thing_name)"
+IOT_POLICY_NAME="areos-acme-pharma-hyd-site-01-policy"   # replace for your tenant/site
+
+aws iot create-keys-and-certificate \
+  --set-as-active \
+  --certificate-pem-outfile /tmp/areos-device-cert.pem \
+  --public-key-outfile /tmp/areos-device-public.key \
+  --private-key-outfile /tmp/areos-device-private.key > /tmp/iot-cert.json
+
+CERT_ARN="$(jq -r '.certificateArn' /tmp/iot-cert.json)"
+aws iot attach-thing-principal --thing-name "$IOT_THING_NAME" --principal "$CERT_ARN"
+aws iot attach-policy --policy-name "$IOT_POLICY_NAME" --target "$CERT_ARN"
 ```
 
-Inspect workflow views:
+### 6.2 Greengrass core device registration check
 
 ```bash
-python - <<'PY'
-from aeros.kernel.api.demo_data import workflow_views
-print(workflow_views()['deviation_queue'].model_dump(mode='json'))
-print(workflow_views()['engineering_reliability_board'].model_dump(mode='json'))
-print(workflow_views()['plant_head_assurance'].model_dump(mode='json'))
-print(workflow_views()['validation_audit_room'].model_dump(mode='json'))
-PY
+aws greengrassv2 list-core-devices
+aws greengrassv2 get-core-device --core-device-thing-name "$IOT_THING_NAME"
 ```
 
-## 8. Phase 6 connector tests
+### 6.3 SiteWise asset ingestion check
 
 ```bash
-pytest -q \
-  tests/test_connector_sdk_hardened.py \
-  tests/test_historian_connector_pack.py \
-  tests/test_qms_mes_connector_pack.py \
-  tests/test_cmms_erp_lims_connector_pack.py \
-  tests/test_connector_validation_pack.py
+aws iotsitewise list-asset-models --max-results 20
+# If SiteWise resources are disabled, use artifacts/sitewise/osd_sitewise_models.example.json as the expected model contract.
 ```
 
-Manual examples:
+### 6.4 DynamoDB event write confirmation
+
+Confirm dev-cell DynamoDB write/read using the provisioned tenant-site table schema (`pk` / `sk`):
 
 ```bash
-python - <<'PY'
-from datetime import datetime, timezone
-from aeros.kernel.connectors import ConnectorReplayRequest, default_connector_registry
-registry = default_connector_registry()
-print(registry.list_connectors())
-print(registry.validate('historian-aveva-pi'))
-print(registry.replay('historian-aveva-pi', ConnectorReplayRequest(
-    start_time=datetime(2026,6,1,10,5,tzinfo=timezone.utc),
-    end_time=datetime(2026,6,1,10,15,tzinfo=timezone.utc),
-)))
-print(registry.generate_validation_pack('historian-aveva-pi', 'artifacts/connectors/validation'))
-PY
+TABLE_NAME="$(terraform output -raw event_metadata_table_name)"
+PK="tenant#acme-pharma#site#hyd-site-01"
+SK="event#$(date -u +%Y%m%dT%H%M%SZ)"
+
+aws dynamodb put-item \
+  --table-name "$TABLE_NAME" \
+  --item "{\"pk\":{\"S\":\"$PK\"},\"sk\":{\"S\":\"$SK\"},\"event_type\":{\"S\":\"post_deploy_smoke\"},\"status\":{\"S\":\"ok\"}}"
+
+aws dynamodb get-item \
+  --table-name "$TABLE_NAME" \
+  --key "{\"pk\":{\"S\":\"$PK\"},\"sk\":{\"S\":\"$SK\"}}"
 ```
 
-## 9. Phase 7 agent tests
+## 7) Deterministic replay verification (same input -> same output hash)
 
 ```bash
-pytest -q \
-  tests/test_agent_tools.py \
-  tests/test_qa_agent.py \
-  tests/test_engineering_agent.py \
-  tests/test_plant_head_agent.py \
-  tests/test_validation_agent.py \
-  tests/test_agent_orchestrator.py
+API_BASE_URL="http://127.0.0.1:8000"
+PAYLOAD='{"source_system":"ignition","parameter":"bioreactor_temperature","value":"38.4","unit":"degC","event_id":"deterministic-evt-001","timestamp":"2026-06-01T10:00:00+00:00"}'
+
+RESP1="$(curl -s -X POST "$API_BASE_URL/ingestion/events/simulate" -H 'content-type: application/json' -d "$PAYLOAD")"
+RESP2="$(curl -s -X POST "$API_BASE_URL/ingestion/events/simulate" -H 'content-type: application/json' -d "$PAYLOAD")"
+
+HASH1="$(echo "$RESP1" | jq -cS . | sha256sum | awk '{print $1}')"
+HASH2="$(echo "$RESP2" | jq -cS . | sha256sum | awk '{print $1}')"
+
+echo "hash1=$HASH1"
+echo "hash2=$HASH2"
+# Pass criteria: HASH1 == HASH2
+# Also expect second call to return is_duplicate=true.
 ```
 
-Manual examples:
+## 8) Fault injection test procedure
+
+### 8.1 Disconnect historian mid-ingestion
+- Remove/blank historian live endpoint variables.
+- Re-run connector health/replay and verify sample fallback still produces normalized records.
+
+### 8.2 Replay duplicate events
+- POST same simulated event twice.
+- Verify second response `is_duplicate=true` and no additional non-duplicate evidence artifact.
+
+### 8.3 Inject out-of-order timestamps
+- POST event B (later timestamp) then event A (earlier timestamp).
+- Verify both are accepted, each has deterministic fingerprint, and ordering is traceable in lineage timestamps.
+
+## 9) CSV / IQ / OQ / PQ evidence capture
+
+Create a validation evidence package per run:
 
 ```bash
-python - <<'PY'
-from aeros.kernel.agents import AgentOrchestrator
-agent = AgentOrchestrator()
-print(agent.ask('Was Batch BATCH-OSD-2026-001 potentially impacted?'))
-print(agent.ask('Which assets are recurring hotspots?'))
-print(agent.ask('What happened and what should I care about?'))
-print(agent.ask('Is the evidence package audit-ready?'))
-PY
+EVIDENCE_ROOT="artifacts/validation/aws-dev/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$EVIDENCE_ROOT"/{iq,oq,pq,logs,hashes,screenshots}
 ```
 
-## 10. API test sequence
+Minimum required captures:
+- **IQ**: Terraform plan/apply output, resource IDs, IoT/Greengrass/SiteWise/DynamoDB existence checks.
+- **OQ**: Deterministic replay proof, duplicate handling proof, connector health/validation outputs.
+- **PQ**: Scenario execution outputs (OSD + biopharma), QA-agent response checks, dossier completeness checks.
 
-Start API:
+Store at least:
+- `/connectors/health`, `/connectors/registry`, `/enterprise/readiness` responses
+- deterministic hash comparison file
+- dossier manifest/package hashes
+- AWS CLI command output logs
+
+## 10) E2E test suite structure (OSD + biopharma)
+
+One-command automation (local/AWS-hosted runner sandbox):
 
 ```bash
-uvicorn aeros.kernel.api.main:app --reload
+cd /home/runner/work/aeros-ai-core-kernel/aeros-ai-core-kernel
+./scripts/run_magic_e2e_suite.sh
 ```
 
-Then call key endpoints:
+This single invocation runs validation tests plus deterministic orchestration and writes a timestamped evidence package to `artifacts/validation/e2e_magic/`.
 
-```bash
-curl -s http://127.0.0.1:8000/health | python3 -m json.tool
-curl -s http://127.0.0.1:8000/assurance/demo-events | python3 -m json.tool
-curl -s http://127.0.0.1:8000/connectors/registry | python3 -m json.tool
-curl -s http://127.0.0.1:8000/connectors/health | python3 -m json.tool
-curl -s -X POST http://127.0.0.1:8000/connectors/historian-aveva-pi/validate | python3 -m json.tool
-curl -s -X POST http://127.0.0.1:8000/connectors/historian-aveva-pi/replay -H 'content-type: application/json' -d '{"start_time":"2026-06-01T10:05:00+00:00","end_time":"2026-06-01T10:15:00+00:00"}' | python3 -m json.tool
-curl -s http://127.0.0.1:8000/connectors/historian-aveva-pi/validation-pack | python3 -m json.tool
-curl -s http://127.0.0.1:8000/agents/tools | python3 -m json.tool
-curl -s -X POST http://127.0.0.1:8000/agents/ask -H 'content-type: application/json' -d '{"question":"Was Batch BATCH-OSD-2026-001 potentially impacted?"}' | python3 -m json.tool
-curl -s http://127.0.0.1:8000/enterprise/readiness | python3 -m json.tool
-```
+Use one framework and two scenario packs:
+- OSD pack (humidity/pressure/dew-point)
+- Biopharma pack (bioreactor temp/pH, WFI, cold-room)
 
-## 11. Functional demo script
+Reusable suite phases:
+1. Preconditions (credentials/endpoint/fallback resolution)
+2. Ingestion and normalization
+3. State-of-control and impact
+4. Evidence graph and dossier
+5. Determinism/idempotency
+6. Fault handling
+7. CSV evidence export
 
-### 15-minute founder demo
+For the full biopharma deterministic walkthrough, use:
+- `docs/runbooks/00_BIOPHARMA_E2E_DETERMINISTIC_TEST_GUIDE.md`
 
-1. Start with positioning: do not sell monitoring; sell proof.
-2. Show a demo event and connect it to state-of-control.
-3. Show batch/product impact and missing evidence.
-4. Show generated dossier and workflow views.
-5. Show connector registry and replay on a historian sample.
-6. Ask QA and plant-head questions via `/agents/ask`.
+## 11) Known limits (as of current repo state)
 
-### 45-minute technical walkthrough
-
-- Walk Phase 1-2 architecture and Terraform plan-first path.
-- Walk Phase 3-5 event -> impact -> evidence -> dossier chain.
-- Walk Phase 6 manifests, contracts, mapping rules, replay, validation pack.
-- Walk Phase 7 deterministic tool registry, orchestrator, and future Bedrock/MCP seam.
-
-### Persona messaging
-
-- QA: human-approved, audit-ready evidence packs.
-- Engineering: recurrence hotspots and post-maintenance recurrence visibility.
-- IT/OT: read-only-first connectors, tenant/site scoping, AWS-native target runtime.
-- Validation: supports Part 11/GxP controls, auditability, and CSV; does not auto-claim compliance.
-
-## 12. Troubleshooting
-
-- Import errors: ensure editable install is active and `pytest -q` works locally.
-- Test failures: run the targeted test files above before full suite re-run.
-- Terraform issues: validate provider auth/profile and run `terraform validate` before `plan`.
-- AWS credentials: not required for local Phase 3-7 testing.
-- Generated artifacts: local connector validation packs live under `artifacts/connectors/validation/`; dossier artifacts under ignored `artifacts/evidence/`.
-
-## 13. Known limitations and next productization steps
-
-- Live enterprise connectors remain future work.
-- Bedrock/MCP runtime is scaffolded, not required for local testing.
-- Enterprise resilience/load testing is documented, not fully automated.
-- Customer-specific validation, IQ/OQ/PQ, and production release controls remain implementation/deployment work.
-
-## Phase 8: Mission-Critical Re-Architecture — Data Backbone, Deterministic Algorithms & Bedrock Runtime
-
-### Data backbone decision
-
-The target architecture is an **AWS-native hybrid backbone**:
-
-- AWS IoT SiteWise for industrial asset models and hot/warm time-series
-- S3 lakehouse with Apache Iceberg-style contracts, Glue Data Catalog, and Lake Formation
-- Amazon Neptune for evidence graph and provenance traversal
-- DynamoDB / Aurora PostgreSQL for workflow state, idempotency, and control-plane state
-- OpenSearch / Bedrock Knowledge Bases for retrieval only, not regulated truth
-- Amazon Bedrock as a controlled rendering and narrative layer over deterministic tools
-
-This preserves the core positioning: Areos is a **system of assurance, not a system of record**.
-
-### Lakehouse zones
-
-The new data backbone contracts define four governed zones:
-
-- **bronze** — raw source payloads and ingestion envelopes
-- **silver** — canonical normalized records
-- **gold** — deterministic assessments and evidence products
-- **audit** — manifests, idempotency, and version/provenance artifacts
-
-### Incident query strategy
-
-Query contracts are now defined for future governed lake queries. The current implementation exposes a stub contract so downstream API and product layers can align on tenant/site-scoped filters before a physical lake query engine is introduced.
-
-### Real-time ingestion strategy + file connector repositioned as legacy
-
-Production ingestion preference order is now explicitly documented and modeled in code:
-
-1. native events/webhooks
-2. APIs/OData/REST/SOAP
-3. OT protocols via Greengrass V2/SiteWise Edge
-4. historian streaming/query APIs
-5. enterprise event bus
-6. managed transfer/SFTP fallback
-7. manual file import — legacy onboarding/backfill only
-
-`FileImportConnector` remains available for local testing, onboarding, and backfill, but it is no longer positioned as the preferred production pattern.
-
-### Deterministic/idempotent algorithm tests
-
-Run the new focused tests:
-
-```bash
-python -m pytest tests/test_event_fingerprints.py -q
-python -m pytest tests/test_idempotency_registry.py -q
-python -m pytest tests/test_deterministic_answer.py -q
-python -m pytest tests/test_lakehouse_contracts.py -q
-python -m pytest tests/test_lakehouse_paths.py -q
-python -m pytest tests/test_graph_projection.py -q
-python -m pytest tests/test_query_contracts.py -q
-python -m pytest tests/test_realtime_ingestion_contracts.py -q
-python -m pytest tests/test_event_api_connector_idempotency.py -q
-python -m pytest tests/test_bedrock_runtime_contracts.py -q
-python -m pytest tests/test_bedrock_guardrails.py -q
-```
-
-Full suite confirmation:
-
-```bash
-python -m pytest tests/ -q
-```
-
-### Bedrock runtime as controlled renderer
-
-The repository now includes explicit Bedrock runtime, prompt, and guardrail contracts. Bedrock is treated as a controlled renderer and explainer over deterministic answers. It must not invent evidence or make autonomous GxP decisions.
-
-### Master architecture diagram link
-
-- `docs/architecture/master_architecture_diagram.md`
-
-### New API endpoints and test commands
-
-```bash
-# Architecture overview
-curl http://localhost:8000/architecture/data-backbone
-curl http://localhost:8000/architecture/deterministic-algorithms
-
-# Simulate real-time event ingestion
-curl -X POST http://localhost:8000/ingestion/events/simulate \
-  -H "Content-Type: application/json" \
-  -d '{"source_system":"bms","parameter":"temperature","value":"26.5","unit":"degC"}'
-
-# Get deterministic QA impact answer
-curl -X POST http://localhost:8000/answers/qa-impact/humidity_excursion_1
-
-# Get deterministic audit readiness answer
-curl -X POST http://localhost:8000/answers/audit-readiness/humidity_excursion_1
-
-# Bedrock render draft (local simulation)
-curl -X POST http://localhost:8000/bedrock/render-draft \
-  -H "Content-Type: application/json" \
-  -d '{"answer_id":"ans_001","mode":"narrative_rendering","rendered_text":"The excursion has been assessed. Human review is required."}'
-```
+- Some live connector behaviors remain scaffolded and require customer-specific runtime integration.
+- Greengrass provisioning/deployment orchestration is architecture-aligned, not fully automated in Terraform.
+- SiteWise resources are optional by default (`enable_sitewise_resources=false`).
+- Customer CSV governance, approvals, and release controls remain deployment-program work.

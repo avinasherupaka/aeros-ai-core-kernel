@@ -6,6 +6,7 @@
 - `docs/architecture/mission_critical_target_architecture.md`
 - `docs/architecture/master_architecture_diagram.md`
 - `docs/runbooks/00_FULL_SYSTEM_TEST_AND_DEMO_GUIDE.md`
+- `docs/runbooks/00_BIOPHARMA_E2E_DETERMINISTIC_TEST_GUIDE.md`
 
 Areos.ai = **Assurance, Reliability, Efficiency Operating System**.
 
@@ -47,6 +48,14 @@ python -m pip install -e '.[dev]'
 pytest -q
 uvicorn aeros.kernel.api.main:app --reload
 ```
+
+## One-command end-to-end demo + validation suite
+
+```bash
+./scripts/run_magic_e2e_suite.sh
+```
+
+This runs a full deterministic validation pack (connectors, ingestion, processors, assurance, evidence graph, dossier, workflows, personas) and writes timestamped evidence artifacts under `artifacts/validation/e2e_magic/`.
 
 ## Full system guide
 
