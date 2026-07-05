@@ -20,7 +20,7 @@ services:
     environment:
       AREOS_MODE: local_mock
       AREOS_LOG_LEVEL: INFO
-      DATABASE_URL: postgresql://areos:areos@postgres:5432/areos_cp
+      DATABASE_URL: postgresql://${AREOS_DB_USER:-areos}:${AREOS_DB_PASSWORD:-areos_local_dev}@postgres:5432/areos_cp
       ARTIFACTS_ROOT: /data/artifacts
     ports:
       - "8000:8000"
@@ -59,15 +59,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: areos
-      POSTGRES_PASSWORD: areos
+      POSTGRES_USER: ${AREOS_DB_USER:-areos}
+      POSTGRES_PASSWORD: ${AREOS_DB_PASSWORD:-areos_local_dev}
       POSTGRES_DB: areos_cp
     ports:
       - "5432:5432"
     volumes:
       - areos_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U areos -d areos_cp"]
+      test: ["CMD-SHELL", "pg_isready -U ${AREOS_DB_USER:-areos} -d areos_cp"]
       interval: 10s
       timeout: 5s
       retries: 5

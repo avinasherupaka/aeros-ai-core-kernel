@@ -10,7 +10,7 @@ Run:
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -813,7 +813,7 @@ def _cp_site_health_cards(snapshot: dict) -> list[SiteHealthCard]:
                 critical_events=critical_events,
                 business_summary=f"{open_events} tracked event(s) across {len(assets)} asset(s) for {site.get('site_label', 'the site')}.",
                 recommended_action=None if _cp_status(site.get("status")) == "green" else "Prioritize the highest-risk asset and close supporting evidence gaps.",
-                last_updated=datetime.utcnow(),
+                last_updated=datetime.now(timezone.utc),
             )
         )
     return cards
@@ -947,7 +947,7 @@ def _cp_site_topologies(snapshot: dict) -> list[ManufacturingSiteTopology]:
                 nodes=nodes,
                 edges=edges,
                 automation_pyramid=automation_pyramid,
-                last_updated=datetime.utcnow(),
+                last_updated=datetime.now(timezone.utc),
             )
         )
     return topologies
@@ -1094,7 +1094,7 @@ def cp_readiness() -> dict:
             for rollup in rollups
             if rollup.overall_status in {"red", "yellow"}
         ][:5],
-        last_updated=datetime.utcnow(),
+        last_updated=datetime.now(timezone.utc),
     )
     return _cp_assert_safe({"enterprise_readiness": readiness.model_dump(mode="json")})
 
