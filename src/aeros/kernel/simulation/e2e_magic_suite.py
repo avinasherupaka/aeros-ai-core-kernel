@@ -39,7 +39,7 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def run_magic_e2e_suite(output_root: Path | str | None = None, max_replay_records: int = 5) -> dict:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     root = Path(output_root or "artifacts/validation/e2e_magic") / stamp
     root.mkdir(parents=True, exist_ok=True)
 

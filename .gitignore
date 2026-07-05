@@ -11,3 +11,5 @@ __pycache__/
 *.tfplan
 
 artifacts/evidence/
+artifacts/lakehouse/
+artifacts/validation/

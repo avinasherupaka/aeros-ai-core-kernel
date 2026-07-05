@@ -216,6 +216,42 @@ cd /home/runner/work/aeros-ai-core-kernel/aeros-ai-core-kernel
 
 This single invocation runs validation tests plus deterministic orchestration and writes a timestamped evidence package to `artifacts/validation/e2e_magic/`.
 
+### 10.1 What validation/evidence this command provides
+
+`./scripts/run_magic_e2e_suite.sh` does two things, in order:
+
+1. Runs the E2E validation pytest pack (kernel flow, connectors, idempotency, state-of-control, impact, evidence graph, dossier packaging, workflow views, deterministic answers, and magic suite tests).
+2. Runs deterministic demo orchestration (`python -m aeros.kernel.simulation.e2e_magic_suite`) that exports a timestamped evidence package under `artifacts/validation/e2e_magic/`.
+
+Evidence produced by this flow includes:
+- Pass/fail evidence from pytest for each required E2E behavior area.
+- Dossier package artifacts (`dossier.md`, `dossier.json`, `manifest.json`, `evidence_index.json`, `source_citations.json`, `missing_evidence_checklist.json`, `approval_placeholder.json`, `package_hashes.json`).
+- Deterministic replay outputs and generated run artifacts captured by the orchestration step.
+
+### 10.2 How to read results and confirm E2E is working
+
+Treat E2E as healthy when all of the following are true:
+
+1. The pytest run ends with no failures (all targeted suite tests pass).
+2. A new timestamped folder appears in `artifacts/validation/e2e_magic/` for the current run.
+3. The run folder contains expected dossier/evidence artifacts and non-empty JSON/markdown outputs.
+4. `package_hashes.json` contains SHA-256 entries for package files, showing integrity metadata was generated.
+5. `manifest.json` and `source_citations.json` contain the expected event/package metadata and traceable source citation fields.
+
+Quick verification commands:
+
+```bash
+# 1) Confirm latest E2E evidence directory was created
+ls -1dt artifacts/validation/e2e_magic/* | head -1
+
+# 2) Inspect generated artifact set in the latest run
+LATEST_RUN="$(ls -1dt artifacts/validation/e2e_magic/* | head -1)"
+find "$LATEST_RUN" -maxdepth 4 -type f | sort
+
+# 3) Spot-check package integrity and citation presence
+find "$LATEST_RUN" -name package_hashes.json -o -name source_citations.json -o -name manifest.json
+```
+
 Use one framework and two scenario packs:
 - OSD pack (humidity/pressure/dew-point)
 - Biopharma pack (bioreactor temp/pH, WFI, cold-room)
@@ -232,7 +268,113 @@ Reusable suite phases:
 For the full biopharma deterministic walkthrough, use:
 - `docs/runbooks/00_BIOPHARMA_E2E_DETERMINISTIC_TEST_GUIDE.md`
 
-## 11) Known limits (as of current repo state)
+## 11) Control Plane UI (read-only SCADA-lite view)
+
+The Control Plane UI translates verbose validation evidence into a human-readable workflow for QA, operations, engineering, and leadership. It is intentionally **read-only** in this phase: it visualizes status, evidence, and workflow readiness, but does not write back to OT systems or approve GxP decisions.
+
+Start the local API/UI after running the E2E suite:
+
+```bash
+./scripts/run_magic_e2e_suite.sh
+uvicorn aeros.kernel.api.main:app --reload
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000/control-plane
+```
+
+The backing API endpoints are:
+
+```text
+GET  /control-plane/api/overview
+GET  /control-plane/api/topology
+GET  /control-plane/api/readiness
+GET  /control-plane/api/data-flows
+GET  /control-plane/api/personas/system_admin
+GET  /control-plane/api/personas/qa
+GET  /control-plane/api/personas/plant_ops
+POST /control-plane/api/assistant/query
+```
+
+### 11.1 What the UI normalizes
+
+The UI/API reads the latest timestamped folder under `artifacts/validation/e2e_magic/` and normalizes:
+
+- `summary.json` into run status and top-level validation checks.
+- `preconditions.json` into connector/edge readiness.
+- `ingestion.json` into connector validation, replay, and idempotency status.
+- `assurance.json` into state-of-control and impact readiness.
+- `dossier.json` into package/evidence readiness.
+- `workflows_answers.json` into QA, Ops, Engineering, and Leadership views.
+
+The frontend does not parse these raw files directly. It calls the normalized control-plane API, which is the same shape an MCP server should use for grounded answers.
+
+### 11.2 How to read the traffic-light status
+
+Traffic-light indicators mean:
+
+- **Green**: validation or workflow stage is complete and no immediate evidence/action gap is detected.
+- **Yellow**: pipeline is functioning, but there is an active excursion, missing evidence, pending human approval, or audit-readiness closure item.
+- **Red**: critical severity or failed connector/readiness condition requires immediate triage.
+
+Readiness is shown at multiple levels:
+
+- **Workflow stage**: preconditions, ingestion, assurance, dossier, persona workflows.
+- **Site/area/asset**: SCADA-lite map rendered as human-readable manufacturing domain paths.
+- **Data flows**: directional integration telemetry across BMS/LIMS/ERP/QMS/CMMS to the control-plane backbone.
+- **Persona**: role-specific workflows for System Administrator, QA, and Plant Ops.
+
+### 11.3 AWS alignment
+
+The local UI is designed to map cleanly to the target AWS architecture:
+
+- **AWS IoT Greengrass**: edge core/component/device health and connector last-seen status.
+- **AWS IoT Core**: MQTT ingestion, event routing, and source event envelopes.
+- **AWS IoT SiteWise**: site/area/asset hierarchy, asset models, property values, alarms, and quality flags.
+- **S3 evidence lake**: dossier packages, source citations, package hashes, and validation evidence.
+- **DynamoDB/Aurora**: workflow state, acknowledgements, CAPA/deviation queue state in later phases.
+- **MCP/assistant layer**: queries normalized control-plane APIs and evidence graph relationships, not raw JSON files.
+
+### 11.4 Embedded assistant usage
+
+Use the assistant panel or API to ask grounded questions:
+
+```bash
+curl -s http://127.0.0.1:8000/control-plane/api/assistant/query \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"Why is the system yellow?","persona":"qa"}' | python -m json.tool
+```
+
+Expected answer shape:
+
+- `summary`: human-readable explanation.
+- `response_markdown`: guided, step-by-step markdown response.
+- `grounding_sources`: evidence locations and normalized model references.
+- `human_approval_required`: always true for GxP-impacting decisions.
+
+### 11.5 Phase boundaries
+
+Current scope:
+
+- Read-only visualization.
+- Latest-run evidence normalization.
+- SCADA-lite topology and R/Y/G readiness.
+- Persona dashboards.
+- Grounded assistant contract.
+
+Not in current scope:
+
+- Alarm acknowledgement writes.
+- CAPA creation/update writes.
+- Greengrass command/control.
+- Automated remediation.
+- Human approval replacement.
+
+Those belong to later workflow-action and closed-loop orchestration phases.
+
+## 12) Known limits (as of current repo state)
 
 - Some live connector behaviors remain scaffolded and require customer-specific runtime integration.
 - Greengrass provisioning/deployment orchestration is architecture-aligned, not fully automated in Terraform.

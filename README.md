@@ -49,6 +49,12 @@ pytest -q
 uvicorn aeros.kernel.api.main:app --reload
 ```
 
+Open the read-only Control Plane UI at:
+
+```text
+http://127.0.0.1:8000/control-plane
+```
+
 ## One-command end-to-end demo + validation suite
 
 ```bash
@@ -56,6 +62,8 @@ uvicorn aeros.kernel.api.main:app --reload
 ```
 
 This runs a full deterministic validation pack (connectors, ingestion, processors, assurance, evidence graph, dossier, workflows, personas) and writes timestamped evidence artifacts under `artifacts/validation/e2e_magic/`.
+
+The Control Plane UI/API normalizes the latest generated evidence package into domain-friendly topology views, traffic-light pipeline observability, role-based dashboards (System Admin, QA, Plant Ops), and an MCP-ready embedded assistant contract.
 
 ## Full system guide
 

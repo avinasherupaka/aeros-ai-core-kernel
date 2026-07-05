@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,10 +47,10 @@ def _resolve_output_root(output_root: str | Path | None) -> Path:
     if output_root is None:
         return default_root
     candidate = Path(output_root).resolve()
-    allowed_roots = [default_root, Path("/tmp").resolve()]
+    allowed_roots = [default_root, Path(tempfile.gettempdir()).resolve()]
     if any(candidate == allowed or allowed in candidate.parents for allowed in allowed_roots):
         return candidate
-    raise ValueError("output_root must be within the default evidence directory or /tmp")
+    raise ValueError("output_root must be within the default evidence directory or system temp directory")
 
 
 def build_gmp_dossier(
@@ -281,4 +282,3 @@ def build_gmp_dossier(
         package_hashes_path=str(package_hashes_path),
         package_completeness_score=package_completeness_score,
     )
-

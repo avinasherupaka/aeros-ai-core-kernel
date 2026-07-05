@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from aeros.kernel.agents import AgentOrchestrator, AgentToolRegistry
@@ -30,6 +31,12 @@ from aeros.kernel.assurance.state_of_control import (
 )
 from aeros.kernel.connectors import ConnectorReplayRequest, default_connector_registry
 from aeros.kernel.config.messages import ASSURANCE_POSITIONING, PROOF_POSITIONING
+from aeros.kernel.control_plane import (
+    ControlPlaneAssistantQuery,
+    build_control_plane_assistant_answer,
+    build_control_plane_snapshot,
+    render_control_plane_html,
+)
 from aeros.kernel.dossiers.gmp_dossier import build_gmp_dossier
 from aeros.kernel.simulation.humidity_excursion import generate_humidity_excursion
 from aeros.kernel.simulation.plant_topology import build_osd_topology
@@ -360,6 +367,44 @@ def get_enterprise_readiness() -> dict:
         "connector_health": connector_registry.health(),
         "agent_runtime": "local deterministic harness",
     }
+
+
+@app.get("/control-plane", response_class=HTMLResponse)
+def control_plane_ui() -> str:
+    return render_control_plane_html()
+
+
+@app.get("/control-plane/api/overview")
+def control_plane_overview() -> dict:
+    return build_control_plane_snapshot()
+
+
+@app.get("/control-plane/api/topology")
+def control_plane_topology() -> dict:
+    return build_control_plane_snapshot()["topology"]
+
+
+@app.get("/control-plane/api/readiness")
+def control_plane_readiness() -> dict:
+    return build_control_plane_snapshot()["readiness"]
+
+
+@app.get("/control-plane/api/data-flows")
+def control_plane_data_flows() -> dict:
+    return build_control_plane_snapshot()["data_flows"]
+
+
+@app.get("/control-plane/api/personas/{persona}")
+def control_plane_persona(persona: str) -> dict:
+    personas = build_control_plane_snapshot()["personas"]
+    if persona not in personas:
+        raise HTTPException(status_code=404, detail=f"Unknown persona: {persona}")
+    return personas[persona]
+
+
+@app.post("/control-plane/api/assistant/query")
+def control_plane_assistant_query(body: ControlPlaneAssistantQuery) -> dict:
+    return build_control_plane_assistant_answer(body)
 
 # ---- New mission-critical endpoints (Phase 8 re-architecture) ----
 
