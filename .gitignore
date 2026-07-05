@@ -13,3 +13,8 @@ __pycache__/
 artifacts/evidence/
 artifacts/lakehouse/
 artifacts/validation/
+
+# Test-generated artifacts (not committed)
+artifacts/test_*/
+artifacts/**/test_*/
+

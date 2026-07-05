@@ -1,0 +1,111 @@
+locals {
+  bucket_name = lower(replace("${var.app_name}-${var.environment}-ui", "_", "-"))
+  tags = merge(var.tags, {
+    Name        = local.bucket_name
+    Environment = var.environment
+    Service     = "control-plane-ui"
+    Domain      = coalesce(var.domain_name, "cloudfront-default")
+  })
+}
+
+resource "aws_s3_bucket" "this" {
+  bucket = local.bucket_name
+  tags   = local.tags
+}
+
+resource "aws_s3_bucket_public_access_block" "this" {
+  bucket = aws_s3_bucket.this.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_cloudfront_origin_access_control" "this" {
+  name                              = "${local.bucket_name}-oac"
+  description                       = "Origin access control for ${local.bucket_name}"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+resource "aws_cloudfront_distribution" "this" {
+  enabled             = true
+  is_ipv6_enabled     = true
+  comment             = "${var.app_name} ${var.environment} control plane UI"
+  default_root_object = "index.html"
+
+  origin {
+    domain_name              = aws_s3_bucket.this.bucket_regional_domain_name
+    origin_id                = "s3-${aws_s3_bucket.this.id}"
+    origin_access_control_id = aws_cloudfront_origin_access_control.this.id
+  }
+
+  default_cache_behavior {
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "s3-${aws_s3_bucket.this.id}"
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    forwarded_values {
+      query_string = false
+
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  custom_error_response {
+    error_code            = 403
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
+  custom_error_response {
+    error_code            = 404
+    response_code         = 200
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 0
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+  }
+
+  tags = local.tags
+}
+
+data "aws_iam_policy_document" "cloudfront_read" {
+  statement {
+    sid = "AllowCloudFrontServicePrincipalReadOnly"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.this.arn}/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.this.arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "this" {
+  bucket = aws_s3_bucket.this.id
+  policy = data.aws_iam_policy_document.cloudfront_read.json
+}

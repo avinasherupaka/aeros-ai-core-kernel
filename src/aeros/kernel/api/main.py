@@ -678,3 +678,513 @@ def bedrock_render_draft(body: BedrockRenderDraftBody) -> dict:
             for v in original_guardrail_result.violations
         ],
     }
+
+
+# ---- Enterprise Control Plane v2 Routes ----
+from aeros.kernel.control_plane.models import (
+    AssistantResponse,
+    ConnectorStatusCard,
+    DataFlowEdge,
+    DossierReadinessCard,
+    EnterpriseReadinessRollup,
+    ManufacturingSiteTopology,
+    PersonaWorkflowCard,
+    ReadinessScore,
+    SiteHealthCard,
+    SiteReadinessRollup,
+    TopologyNode,
+    validate_no_infra_leak,
+)
+
+
+_CP_PERSONA_ALIASES = {
+    "system_admin": "system_admin",
+    "qa": "qa",
+    "plant_ops": "plant_ops",
+    "engineering": "engineering",
+    "leadership": "leadership",
+    "ops": "plant_ops",
+}
+
+
+def _cp_slug(value: str) -> str:
+    return value.lower().replace(" ", "-").replace("/", "-").replace("->", "-").replace("_", "-")
+
+
+def _cp_status(value: str | None) -> str:
+    normalized = (value or "unknown").lower()
+    if normalized in {"green", "healthy", "ok", "success", "connected", "up"}:
+        return "green"
+    if normalized in {"yellow", "warning", "degraded", "stale", "at_risk"}:
+        return "yellow"
+    if normalized in {"red", "failed", "error", "down", "critical", "unhealthy"}:
+        return "red"
+    return "unknown"
+
+
+def _cp_aggregate(statuses: list[str], default: str = "unknown") -> str:
+    normalized = [_cp_status(status) for status in statuses if status]
+    if not normalized:
+        return default
+    if "red" in normalized:
+        return "red"
+    if "yellow" in normalized:
+        return "yellow"
+    if "green" in normalized:
+        return "green"
+    return default
+
+
+def _cp_assert_safe(payload: dict) -> dict:
+    violations = validate_no_infra_leak(payload)
+    if violations:
+        raise HTTPException(
+            status_code=500,
+            detail={"message": "Infrastructure masking validation failed.", "violations": violations},
+        )
+    return payload
+
+
+def _cp_snapshot() -> dict:
+    return build_control_plane_snapshot()
+
+
+def _cp_connector_cards() -> list[ConnectorStatusCard]:
+    manifests = {item["connector_id"]: item for item in connector_registry.list_connectors()}
+    cards: list[ConnectorStatusCard] = []
+    for health in connector_registry.health():
+        manifest = manifests.get(health["connector_id"], {})
+        status = _cp_status(health.get("status"))
+        system_type = str(manifest.get("connector_type", "system")).upper()
+        recommended_action = None if status == "green" else "Review source-system connectivity and connector retry posture."
+        cards.append(
+            ConnectorStatusCard(
+                connector_label=str(manifest.get("source_system", system_type)),
+                system_type=system_type,
+                status=status,
+                last_ingestion_label="Recently synchronized",
+                latency_ms=None,
+                latency_status=status if status in {"red", "yellow"} else "green",
+                polling_interval_s=None,
+                records_last_hour=None,
+                sla_breach=status == "red",
+                degradation_reason=None if status == "green" else str(health.get("details", {}).get("reason", "Connector requires attention.")),
+                recommended_action=recommended_action,
+                _connector_id=health["connector_id"],
+            )
+        )
+    return cards
+
+
+def _cp_site_health_cards(snapshot: dict) -> list[SiteHealthCard]:
+    readiness = snapshot.get("readiness", {})
+    stages = readiness.get("stages", [])
+    connector_status = _cp_aggregate([card.status for card in _cp_connector_cards()], default="unknown")
+    evidence_status = _cp_aggregate([
+        stage.get("status")
+        for stage in stages
+        if stage.get("stage_label") == "Dossier readiness"
+    ], default="unknown")
+    audit_status = evidence_status
+    data_freshness = _cp_aggregate([flow.get("status") for flow in snapshot.get("data_flows", {}).get("connections", [])], default="unknown")
+    cards: list[SiteHealthCard] = []
+    for index, site in enumerate(snapshot.get("topology", {}).get("sites", []), start=1):
+        assets = [asset for area in site.get("areas", []) for asset in area.get("assets", [])]
+        site_id = next((asset.get("site_id") for asset in assets if asset.get("site_id")), f"site_{index:02d}")
+        critical_events = sum(
+            1
+            for asset in assets
+            for event in asset.get("latest_events", [])
+            if str(event.get("severity", "")).lower() in {"critical", "high"}
+        )
+        open_events = sum(len(asset.get("latest_events", [])) for asset in assets)
+        cards.append(
+            SiteHealthCard(
+                site_id=site_id,
+                site_label=site.get("site_label", f"Manufacturing Site {index}"),
+                archetype=site.get("site_archetype", "General Manufacturing"),
+                overall_status=_cp_status(site.get("status")),
+                equipment_health=_cp_aggregate([asset.get("status") for asset in assets], default=_cp_status(site.get("status"))),
+                connector_health=connector_status,
+                data_freshness=data_freshness,
+                evidence_completeness=evidence_status,
+                audit_readiness=audit_status,
+                open_events=open_events,
+                critical_events=critical_events,
+                business_summary=f"{open_events} tracked event(s) across {len(assets)} asset(s) for {site.get('site_label', 'the site')}.",
+                recommended_action=None if _cp_status(site.get("status")) == "green" else "Prioritize the highest-risk asset and close supporting evidence gaps.",
+                last_updated=datetime.utcnow(),
+            )
+        )
+    return cards
+
+
+def _cp_site_rollups(snapshot: dict) -> list[SiteReadinessRollup]:
+    cards = _cp_site_health_cards(snapshot)
+    return [
+        SiteReadinessRollup(
+            site_label=card.site_label,
+            archetype=card.archetype,
+            overall_status=card.overall_status,
+            dimensions=[
+                ReadinessScore(
+                    dimension="Equipment Health",
+                    status=card.equipment_health,
+                    score_pct=100 if card.equipment_health == "green" else 70 if card.equipment_health == "yellow" else 40,
+                    reason_codes=[f"open_events:{card.open_events}", f"critical_events:{card.critical_events}"],
+                    recommended_actions=["Stabilize the most degraded equipment cluster first."],
+                ),
+                ReadinessScore(
+                    dimension="Connector Health",
+                    status=card.connector_health,
+                    score_pct=100 if card.connector_health == "green" else 75 if card.connector_health == "yellow" else 45,
+                    reason_codes=[f"connector_status:{card.connector_health}"],
+                    recommended_actions=["Review upstream source-system health and connector coverage."],
+                ),
+                ReadinessScore(
+                    dimension="Audit Readiness",
+                    status=card.audit_readiness,
+                    score_pct=100 if card.audit_readiness == "green" else 70 if card.audit_readiness == "yellow" else 40,
+                    reason_codes=[f"evidence_status:{card.evidence_completeness}"],
+                    recommended_actions=["Resolve missing evidence before QA disposition."],
+                ),
+            ],
+            plant_risk_summary=card.business_summary,
+            qa_release_posture="ready" if card.overall_status == "green" else "review_required",
+            audit_readiness_posture="audit_ready" if card.audit_readiness == "green" else "remediation_open",
+            open_capas=card.critical_events,
+            overdue_reviews=max(card.open_events - card.critical_events, 0),
+            last_updated=card.last_updated,
+        )
+        for card in cards
+    ]
+
+
+def _cp_site_topologies(snapshot: dict) -> list[ManufacturingSiteTopology]:
+    topologies: list[ManufacturingSiteTopology] = []
+    edge_templates = snapshot.get("data_flows", {}).get("connections", [])
+    for site in snapshot.get("topology", {}).get("sites", []):
+        site_label = site.get("site_label", "Manufacturing Site")
+        site_node_id = _cp_slug(site_label)
+        nodes = [
+            TopologyNode(
+                node_id=site_node_id,
+                node_label=site_label,
+                node_type="site",
+                status=_cp_status(site.get("status")),
+                metadata={"archetype": site.get("site_archetype", "General Manufacturing")},
+            )
+        ]
+        for area in site.get("areas", []):
+            area_label = area.get("area_label", "Area")
+            area_node_id = f"{site_node_id}-{_cp_slug(area_label)}"
+            nodes.append(
+                TopologyNode(
+                    node_id=area_node_id,
+                    node_label=area_label,
+                    node_type="area",
+                    status=_cp_status(area.get("status")),
+                    parent_id=site_node_id,
+                    metadata={},
+                )
+            )
+            for asset in area.get("assets", []):
+                asset_label = asset.get("asset_label", "Asset")
+                nodes.append(
+                    TopologyNode(
+                        node_id=f"{area_node_id}-{_cp_slug(asset_label)}",
+                        node_label=asset_label,
+                        node_type="asset",
+                        status=_cp_status(asset.get("status")),
+                        parent_id=area_node_id,
+                        metadata={"domain_path": asset.get("domain_path", "")},
+                    )
+                )
+        edges = [
+            DataFlowEdge(
+                source_label=flow.get("source", "Source"),
+                target_label=flow.get("target", "Target"),
+                flow_type="workflow" if "QA" in str(flow.get("target")) or "Assistant" in str(flow.get("target")) else "telemetry",
+                status=_cp_status(flow.get("status")),
+                latency_label=f"{flow['latency_ms']} ms" if flow.get("latency_ms") is not None else None,
+                data_rate_label=(f"{flow['records_out']} msgs/run" if flow.get("records_out") is not None else None),
+                last_data_label="Current validation snapshot",
+                degradation_reason=flow.get("reason"),
+            )
+            for flow in edge_templates
+        ]
+        automation_labels = [
+            "PLC",
+            "BMS",
+            "Historian",
+            "MES",
+            "LIMS",
+            "QMS",
+            "ERP",
+            "CMMS",
+            "IoT",
+            "SiteWise",
+            "Evidence",
+            "Workflow",
+            "UI",
+            "MCP",
+        ]
+        automation_pyramid = [
+            TopologyNode(
+                node_id=f"{site_node_id}-automation-{idx}",
+                node_label=label,
+                node_type="system",
+                status="green",
+                parent_id=site_node_id,
+                metadata={"tier": str(idx + 1)},
+            )
+            for idx, label in enumerate(automation_labels)
+        ]
+        topologies.append(
+            ManufacturingSiteTopology(
+                site_label=site_label,
+                archetype=site.get("site_archetype", "General Manufacturing"),
+                nodes=nodes,
+                edges=edges,
+                automation_pyramid=automation_pyramid,
+                last_updated=datetime.utcnow(),
+            )
+        )
+    return topologies
+
+
+def _cp_persona_card(snapshot: dict, persona: str) -> PersonaWorkflowCard:
+    persona_key = _CP_PERSONA_ALIASES.get(persona, persona)
+    if persona_key not in {"system_admin", "qa", "plant_ops", "engineering", "leadership"}:
+        raise HTTPException(status_code=404, detail=f"Unknown persona: {persona}")
+    backing_key = persona_key if persona_key in snapshot.get("personas", {}) else ("system_admin" if persona_key == "engineering" else "plant_ops")
+    persona_snapshot = snapshot.get("personas", {}).get(backing_key, {})
+    status = _cp_status(snapshot.get("readiness", {}).get("overall_status"))
+    return PersonaWorkflowCard(
+        persona=persona_key,
+        persona_label=persona_snapshot.get("label", persona_key.replace("_", " ").title()),
+        primary_objective=persona_snapshot.get("objective", "Coordinate readiness and response actions."),
+        kpis=[
+            {
+                "label": str(item.get("name", "KPI")),
+                "value": str(item.get("value", "n/a")),
+                "status": _cp_status(item.get("status", status)),
+                "trend": "stable",
+            }
+            for item in persona_snapshot.get("kpis", [])
+        ],
+        alerts=[
+            {
+                "severity": status,
+                "summary": str(highlight),
+                "owner": "Control Plane",
+                "due": "Review now",
+            }
+            for highlight in persona_snapshot.get("highlights", [])[:5]
+        ],
+        recommended_actions=[
+            {
+                "action": str(action),
+                "priority": "high" if index == 0 else "medium",
+                "rationale": f"{persona_snapshot.get('label', 'Persona')} guidance from the latest control-plane snapshot.",
+            }
+            for index, action in enumerate(persona_snapshot.get("recommended_actions", [])[:5])
+        ],
+        workflow_state={
+            "snapshot_source": "build_control_plane_snapshot",
+            "overall_status": status,
+            "persona_key": persona_key,
+        },
+    )
+
+
+def _cp_dossier_card(batch_id: str) -> DossierReadinessCard:
+    site_cards = {card.site_id: card.site_label for card in _cp_site_health_cards(_cp_snapshot())}
+    for bundle in demo_event_bundles().values():
+        if bundle.event.batch_id == batch_id:
+            completeness_pct = int(round(getattr(bundle.dossier, "package_completeness_score", 0.0) * 100))
+            missing_evidence = list(getattr(bundle.impact, "missing_evidence", []))
+            status = "green" if completeness_pct >= 90 and not missing_evidence else "yellow" if completeness_pct >= 70 else "red"
+            return DossierReadinessCard(
+                batch_id=bundle.event.batch_id,
+                batch_label=f"Batch {bundle.event.batch_id}",
+                product_label=bundle.event.product_id or "Unspecified Product",
+                site_label=site_cards.get(bundle.event.site_id, bundle.event.site_id.replace("_", " ").title()),
+                dossier_status=status,
+                completeness_pct=completeness_pct,
+                missing_evidence=missing_evidence,
+                open_capas=len(missing_evidence),
+                qa_review_status="pending_human_review" if missing_evidence else "ready_for_qa",
+                human_approval_required=True,
+                release_recommendation=(
+                    f"Hold — {len(missing_evidence)} open evidence item(s) require QA review."
+                    if missing_evidence
+                    else "Proceed to QA review with human approval."
+                ),
+                evidence_citations=[bundle.event.event_id, bundle.scenario_id],
+            )
+    return DossierReadinessCard(
+        batch_id=batch_id,
+        batch_label=f"Batch {batch_id}",
+        product_label="Unspecified Product",
+        site_label="Manufacturing Site",
+        dossier_status="unknown",
+        completeness_pct=0,
+        missing_evidence=["No batch-specific dossier evidence has been mapped yet."],
+        open_capas=0,
+        qa_review_status="not_started",
+        human_approval_required=True,
+        release_recommendation="Hold — dossier evidence mapping is not yet complete.",
+        evidence_citations=["placeholder:dossier-readiness"],
+    )
+
+
+@app.get("/cp/sites")
+def cp_list_sites() -> dict:
+    """List all manufacturing sites with domain-safe health cards."""
+    cards = _cp_site_health_cards(_cp_snapshot())
+    return _cp_assert_safe({"sites": [card.model_dump(mode="json") for card in cards]})
+
+
+@app.get("/cp/sites/{site_id}/health")
+def cp_site_health(site_id: str) -> dict:
+    """Get domain-safe health card for a specific site."""
+    cards = _cp_site_health_cards(_cp_snapshot())
+    match = next(
+        (
+            card
+            for card in cards
+            if site_id in {card.site_id, _cp_slug(card.site_id), _cp_slug(card.site_label)}
+        ),
+        None,
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail=f"Unknown site_id: {site_id}")
+    return _cp_assert_safe({"site": match.model_dump(mode="json")})
+
+
+@app.get("/cp/topology")
+def cp_topology() -> dict:
+    """Get manufacturing site topology with domain labels. No raw AWS IDs."""
+    topologies = _cp_site_topologies(_cp_snapshot())
+    return _cp_assert_safe({"topology": [topology.model_dump(mode="json") for topology in topologies]})
+
+
+@app.get("/cp/connectors")
+def cp_connectors() -> dict:
+    """List connector status using domain labels only."""
+    cards = _cp_connector_cards()
+    return _cp_assert_safe({"connectors": [card.model_dump(mode="json") for card in cards]})
+
+
+@app.get("/cp/readiness")
+def cp_readiness() -> dict:
+    """Get enterprise readiness rollup with hierarchical scores."""
+    rollups = _cp_site_rollups(_cp_snapshot())
+    readiness = EnterpriseReadinessRollup(
+        overall_status=_cp_aggregate([rollup.overall_status for rollup in rollups]),
+        total_sites=len(rollups),
+        red_sites=sum(1 for rollup in rollups if rollup.overall_status == "red"),
+        yellow_sites=sum(1 for rollup in rollups if rollup.overall_status == "yellow"),
+        green_sites=sum(1 for rollup in rollups if rollup.overall_status == "green"),
+        sites=rollups,
+        enterprise_summary="Enterprise readiness is derived from normalized site health, connector stability, and evidence closure posture.",
+        top_risks=[
+            rollup.plant_risk_summary
+            for rollup in rollups
+            if rollup.overall_status in {"red", "yellow"}
+        ][:5],
+        last_updated=datetime.utcnow(),
+    )
+    return _cp_assert_safe({"enterprise_readiness": readiness.model_dump(mode="json")})
+
+
+@app.get("/cp/personas/{persona}/workflow")
+def cp_persona_workflow(persona: str) -> dict:
+    """Get persona-specific workflow view."""
+    card = _cp_persona_card(_cp_snapshot(), persona)
+    return _cp_assert_safe({"workflow": card.model_dump(mode="json")})
+
+
+@app.post("/cp/assistant/query")
+def cp_assistant_query(body: ControlPlaneAssistantQuery) -> dict:
+    """Query the MCP assistant. Returns domain-safe markdown, never raw JSON."""
+    answer = build_control_plane_assistant_answer(body)
+    response = AssistantResponse(
+        question=body.question,
+        persona=body.persona,
+        summary=answer.get("summary", "Assistant response generated."),
+        response_markdown=answer.get("response_markdown", ""),
+        response_format=answer.get("response_format", "markdown"),
+        deterministic_facts=[str(item) for item in answer.get("grounding_sources", [])],
+        inferred_explanations=[answer.get("summary", "")],
+        recommended_actions=[
+            line.removeprefix("1. ")
+            for line in str(answer.get("response_markdown", "")).splitlines()
+            if line.startswith(("1. ", "2. ", "3. "))
+        ],
+        human_approval_required=bool(answer.get("human_approval_required", False)),
+        gxp_decision_deferred=True,
+        evidence_citations=[str(item) for item in answer.get("grounding_sources", [])],
+    )
+    payload = response.model_dump(mode="json")
+    violations = validate_no_infra_leak(payload)
+    if violations:
+        fallback = AssistantResponse(
+            question=body.question,
+            persona=body.persona,
+            summary="A safe response was generated after infrastructure identifiers were redacted.",
+            response_markdown="The assistant generated internal-only references. A sanitized control-plane summary has been returned instead.",
+            response_format="guided_remediation",
+            deterministic_facts=["Infrastructure identifiers were detected and withheld from the UI response."],
+            recommended_actions=["Retry the query after narrowing scope to site, batch, or persona context."],
+            human_approval_required=True,
+            gxp_decision_deferred=True,
+            evidence_citations=["sanitization:control-plane-mask"],
+            prohibited_content_check_passed=False,
+        )
+        return fallback.model_dump(mode="json")
+    return payload
+
+
+@app.get("/cp/dossiers/{batch_id}")
+def cp_dossier(batch_id: str) -> dict:
+    """Get dossier readiness card for a batch."""
+    dossier = _cp_dossier_card(batch_id)
+    return _cp_assert_safe({"dossier": dossier.model_dump(mode="json")})
+
+
+@app.get("/cp/capa/queue")
+def cp_capa_queue() -> dict:
+    """Get CAPA/deviation queue for QA persona."""
+    queue = workflow_views().get("deviation_queue").model_dump(mode="json").get("queue", [])
+    site_lookup = {card.site_id: card.site_label for card in _cp_site_health_cards(_cp_snapshot())}
+    payload = {
+        "persona": "qa",
+        "queue": [
+            {
+                "record_id": item.get("event_id", f"capa-{index + 1}"),
+                "site_label": site_lookup.get(item.get("site_id", ""), "Manufacturing Site"),
+                "summary": item.get("summary", "Deviation/CAPA item awaiting review."),
+                "owner": item.get("owner", "QA"),
+                "priority": item.get("severity", "medium"),
+                "status": item.get("status", "open"),
+                "due_label": "Review in current shift",
+            }
+            for index, item in enumerate(queue)
+        ],
+    }
+    return _cp_assert_safe(payload)
+
+
+@app.get("/cp/admin/diagnostics")
+def cp_admin_diagnostics() -> dict:
+    """Admin-only: raw infrastructure diagnostics."""
+    snapshot = _cp_snapshot()
+    return {
+        "mode": "admin_only",
+        "control_plane": snapshot.get("control_plane", {}),
+        "aws_alignment": snapshot.get("aws_alignment", {}),
+        "connector_registry": connector_registry.list_connectors(),
+        "connector_health": connector_registry.health(),
+    }

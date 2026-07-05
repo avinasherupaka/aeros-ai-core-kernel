@@ -1,0 +1,130 @@
+version: "3.9"
+
+# Reusable Python image definition for the local control plane services.
+x-areos-python-build: &areos-python-build
+  context: ./
+  dockerfile_inline: |
+    FROM python:3.11-slim
+    WORKDIR /app
+    ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app/src
+    COPY pyproject.toml README.md /app/
+    COPY src /app/src
+    RUN pip install --no-cache-dir .
+
+services:
+  # FastAPI backend for the Enterprise Manufacturing Control Plane.
+  api:
+    build: *areos-python-build
+    working_dir: /app
+    command: uvicorn aeros.kernel.api.main:app --reload --host 0.0.0.0 --port 8000
+    environment:
+      AREOS_MODE: local_mock
+      AREOS_LOG_LEVEL: INFO
+      DATABASE_URL: postgresql://areos:areos@postgres:5432/areos_cp
+      ARTIFACTS_ROOT: /data/artifacts
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/data/artifacts:ro
+      - ./src:/app/src:ro
+      - areos_artifacts_cache:/data/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-ingestion:
+        condition: service_started
+    networks:
+      - areos-control-plane
+
+  # Optional Vite-powered React UI for local control plane exploration.
+  ui:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+    environment:
+      VITE_API_BASE_URL: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+    profiles:
+      - ui
+    networks:
+      - areos-control-plane
+
+  # PostgreSQL backing store for workflow state, snapshots, and readiness rollups.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: areos
+      POSTGRES_PASSWORD: areos
+      POSTGRES_DB: areos_cp
+    ports:
+      - "5432:5432"
+    volumes:
+      - areos_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U areos -d areos_cp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - areos-control-plane
+
+  # Local mock ingestion worker that watches artifacts and emits normalized snapshots.
+  mock-ingestion:
+    build: *areos-python-build
+    working_dir: /app
+    command: python -m aeros.kernel.ingestion.mock_watcher
+    environment:
+      AREOS_MODE: local_mock
+      ARTIFACTS_ROOT: /data/artifacts
+      API_BASE_URL: http://api:8000
+    volumes:
+      - ./artifacts:/data/artifacts:ro
+      - areos_artifacts_cache:/data/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - areos-control-plane
+
+  # Optional MCP assistant runtime for local tool orchestration experiments.
+  mcp-server:
+    build: *areos-python-build
+    working_dir: /app
+    command: python -m aeros.kernel.mcp.server
+    environment:
+      AREOS_MODE: local_mock
+      API_BASE_URL: http://api:8000
+    ports:
+      - "8001:8001"
+    depends_on:
+      api:
+        condition: service_started
+    profiles:
+      - assistant
+    networks:
+      - areos-control-plane
+
+  # MQTT broker matching the existing local edge simulation setup.
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - areos-control-plane
+
+volumes:
+  areos_postgres_data:
+  areos_artifacts_cache:
+
+networks:
+  areos-control-plane:
+    driver: bridge
