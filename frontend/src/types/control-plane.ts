@@ -202,3 +202,91 @@ export interface AssistantQueryRequest {
 
 export interface StatusBadgeProps { status: TrafficLight; label?: string }
 export interface DrilldownTarget { type: NodeType; id: string; label: string }
+
+// ---- Active Event Command Center ----
+export type EventStatus = "red" | "yellow" | "green";
+
+export interface EventSummary {
+  event_id: string;
+  title: string;
+  parameter: string;
+  severity: string;
+  status: EventStatus;
+  outcome: string;
+  site_label: string;
+  room_label?: string | null;
+  asset_label: string;
+  batch_label?: string | null;
+  product_label?: string | null;
+  phase_label?: string | null;
+  duration_minutes?: number | null;
+  peak_value?: number | null;
+  unit?: string | null;
+}
+
+export interface EventContext {
+  parameter: string;
+  asset_label: string;
+  room_label?: string | null;
+  batch_label?: string | null;
+  product_label?: string | null;
+  phase_label?: string | null;
+  duration_minutes?: number | null;
+  peak_value?: number | null;
+  unit?: string | null;
+  alert_limit?: number | null;
+  action_limit?: number | null;
+}
+
+export interface EventImpact {
+  risk_level: string;
+  gxp_impact: boolean;
+  capa_required: boolean;
+  confidence_score?: number | null;
+  confidence_explanation?: string | null;
+  quality_risks: string[];
+}
+
+export interface EvidenceGraphNode {
+  node_id: string;
+  node_type: string;
+  label: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface EvidenceGraphEdge {
+  source_id: string;
+  target_id: string;
+  edge_type: string;
+}
+
+export interface EvidenceGraph {
+  nodes: EvidenceGraphNode[];
+  edges: EvidenceGraphEdge[];
+}
+
+export interface SeriesPoint {
+  t: number;
+  value: number | null;
+}
+
+export interface RequiredAction {
+  label: string;
+  status: "done" | "pending" | "blocked";
+}
+
+export interface EventDossierSummary {
+  completeness_pct: number;
+  missing_evidence: string[];
+  required_evidence: string[];
+}
+
+export interface CommandCenterEvent {
+  summary: EventSummary;
+  context: EventContext;
+  impact: EventImpact;
+  series: SeriesPoint[];
+  evidence_graph: EvidenceGraph;
+  dossier: EventDossierSummary;
+  required_actions: RequiredAction[];
+}

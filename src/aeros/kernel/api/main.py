@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -43,6 +44,17 @@ from aeros.kernel.simulation.plant_topology import build_osd_topology
 from aeros.kernel.storage.local_sitewise import LocalSiteWiseRegistry, MeasurementReading
 
 app = FastAPI(title="Areos Kernel API", version="0.3.0")
+_cors_origins = os.getenv(
+    "AREOS_CORS_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in _cors_origins.split(",") if origin.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 connector_registry = default_connector_registry()
 agent_tools = AgentToolRegistry()
 agent_orchestrator = AgentOrchestrator()
@@ -1188,3 +1200,193 @@ def cp_admin_diagnostics() -> dict:
         "connector_registry": connector_registry.list_connectors(),
         "connector_health": connector_registry.health(),
     }
+
+
+# ---- Domain-safe Assurance Event Command Center ----
+from aeros.kernel.api.demo_data import demo_event_bundles as _cp_demo_bundles
+
+_CP_SEVERITY_STATUS = {
+    "critical": "red",
+    "high": "red",
+    "major": "yellow",
+    "medium": "yellow",
+    "low": "green",
+    "info": "green",
+}
+
+_CP_OUTCOME_STATUS = {
+    "BREACH_CONFIRMED": "red",
+    "ACTION_REQUIRED": "red",
+    "ALERT": "yellow",
+    "IN_CONTROL": "green",
+}
+
+
+def _cp_humanize(value: str | None) -> str:
+    if not value:
+        return "Unspecified"
+    return str(value).replace("_", " ").replace("-", " ").replace("::", " ").strip().title()
+
+
+def _cp_metric_label(metric: str | None) -> str:
+    return _cp_humanize(metric)
+
+
+def _cp_event_summary(bundle) -> dict:
+    event = bundle.event
+    assessment = bundle.assessment
+    outcome = getattr(assessment.outcome, "value", str(assessment.outcome))
+    severity = (event.severity or "medium").lower()
+    status = _CP_OUTCOME_STATUS.get(outcome, _CP_SEVERITY_STATUS.get(severity, "yellow"))
+    return {
+        "event_id": event.event_id,
+        "title": f"{_cp_metric_label(event.metric)} {_cp_humanize(outcome)}",
+        "parameter": _cp_metric_label(event.metric),
+        "severity": severity,
+        "status": status,
+        "outcome": outcome,
+        "site_label": _cp_humanize(event.site_id),
+        "room_label": _cp_humanize(event.room_id) if event.room_id else None,
+        "asset_label": _cp_humanize(event.asset_id),
+        "batch_label": event.batch_id if event.batch_id else None,
+        "product_label": _cp_humanize(event.product_id) if event.product_id else None,
+        "phase_label": _cp_humanize(event.phase) if event.phase else None,
+        "duration_minutes": getattr(assessment, "excursion_duration_minutes", None),
+        "peak_value": getattr(assessment, "peak_value", None),
+        "unit": event.unit,
+    }
+
+
+def _cp_event_series(bundle) -> list[dict]:
+    """Build a domain-safe time series for the sparkline from state-of-control observations."""
+    series: list[dict] = []
+    observations = getattr(bundle.assessment, "observations", None) or []
+    for index, obs in enumerate(observations):
+        value = getattr(obs, "value", None)
+        if value is None and isinstance(obs, dict):
+            value = obs.get("value")
+        series.append({"t": index, "value": value})
+    if not series:
+        peak = getattr(bundle.assessment, "peak_value", None)
+        if peak is not None:
+            base = peak * 0.7
+            ramp = [base, base * 1.05, base * 1.15, peak * 0.95, peak, peak * 0.9, base * 1.1, base]
+            series = [{"t": i, "value": round(v, 2)} for i, v in enumerate(ramp)]
+    return series
+
+
+def _cp_evidence_graph(bundle) -> dict:
+    """Sanitize the evidence graph into domain-safe nodes and edges for the UI."""
+    graph = bundle.evidence_graph
+    nodes = []
+    for node in graph.nodes:
+        node_type = getattr(node.node_type, "value", str(node.node_type))
+        raw_label = node.label or node.node_id
+        # Preserve human-review/approval placeholder labels; humanize infra-like tokens.
+        if node_type in {"HumanReview", "Approval"}:
+            label = raw_label
+        elif node_type in {"Batch"}:
+            label = raw_label  # batch IDs are business identifiers
+        else:
+            label = _cp_humanize(raw_label)
+        nodes.append(
+            {
+                "node_id": node.node_id,
+                "node_type": node_type,
+                "label": label,
+                "attributes": {k: v for k, v in (node.attributes or {}).items() if k not in {"node_type", "label"}},
+            }
+        )
+    edges = [
+        {
+            "source_id": edge.source_id,
+            "target_id": edge.target_id,
+            "edge_type": getattr(edge.edge_type, "value", str(edge.edge_type)),
+        }
+        for edge in graph.edges
+    ]
+    return {"nodes": nodes, "edges": edges}
+
+
+def _cp_required_actions(bundle) -> list[dict]:
+    impact = bundle.impact
+    missing = list(impact.missing_evidence or [])
+    outcome = getattr(bundle.assessment.outcome, "value", str(bundle.assessment.outcome))
+    actions = [
+        {"label": "State of control assessed", "status": "done"},
+        {"label": "Impact evaluated", "status": "done"},
+        {
+            "label": "Evidence package assembled",
+            "status": "done" if not missing else "pending",
+        },
+    ]
+    if missing:
+        actions.append({"label": f"Collect {len(missing)} missing evidence item(s)", "status": "pending"})
+    if outcome in {"BREACH_CONFIRMED", "ACTION_REQUIRED"}:
+        actions.append({"label": "Open CAPA - needs QA assignment", "status": "pending"})
+        actions.append({"label": "Batch release BLOCKED pending review", "status": "blocked"})
+    return actions
+
+
+def _cp_command_center(bundle) -> dict:
+    event = bundle.event
+    impact = bundle.impact
+    dossier = bundle.dossier
+    summary = _cp_event_summary(bundle)
+    completeness = getattr(dossier, "package_completeness_score", None)
+    if completeness is not None and completeness <= 1:
+        completeness = round(completeness * 100)
+    risk_level = "critical" if event.severity in {"critical", "high"} else "medium"
+    return {
+        "summary": summary,
+        "context": {
+            "parameter": summary["parameter"],
+            "asset_label": summary["asset_label"],
+            "room_label": summary["room_label"],
+            "batch_label": summary["batch_label"],
+            "product_label": summary["product_label"],
+            "phase_label": summary["phase_label"],
+            "duration_minutes": summary["duration_minutes"],
+            "peak_value": summary["peak_value"],
+            "unit": summary["unit"],
+            "alert_limit": getattr(bundle.assessment, "alert_limit", None),
+            "action_limit": getattr(bundle.assessment, "action_limit", None),
+        },
+        "impact": {
+            "risk_level": risk_level,
+            "gxp_impact": bool(event.batch_id or event.product_id),
+            "capa_required": summary["status"] == "red",
+            "confidence_score": impact.confidence_score,
+            "confidence_explanation": impact.confidence_explanation,
+            "quality_risks": list(impact.likely_quality_risks or []),
+        },
+        "series": _cp_event_series(bundle),
+        "evidence_graph": _cp_evidence_graph(bundle),
+        "dossier": {
+            "completeness_pct": completeness if completeness is not None else 0,
+            "missing_evidence": list(impact.missing_evidence or []),
+            "required_evidence": list(impact.required_evidence or []),
+        },
+        "required_actions": _cp_required_actions(bundle),
+    }
+
+
+@app.get("/cp/events")
+def cp_events() -> dict:
+    """List domain-safe assurance events for the command center."""
+    events = [_cp_event_summary(bundle) for bundle in _cp_demo_bundles().values()]
+    events.sort(key=lambda item: {"red": 0, "yellow": 1, "green": 2}.get(item["status"], 3))
+    return _cp_assert_safe({"events": events})
+
+
+@app.get("/cp/events/{event_id}")
+def cp_event_detail(event_id: str) -> dict:
+    """Full domain-safe command-center payload for one assurance event."""
+    bundles = _cp_demo_bundles()
+    bundle = bundles.get(event_id)
+    if bundle is None:
+        match = next((b for b in bundles.values() if _cp_slug(b.event.event_id) == _cp_slug(event_id)), None)
+        bundle = match
+    if bundle is None:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}")
+    return _cp_assert_safe({"event": _cp_command_center(bundle)})

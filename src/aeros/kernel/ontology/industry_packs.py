@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +54,27 @@ class IndustryPack(BaseModel):
 
 
 def scenario_library_path() -> Path:
-    return Path(__file__).resolve().parents[4] / "artifacts" / "scenarios" / "regulated_scenario_library.json"
+    explicit_path = os.getenv("AREOS_SCENARIO_LIBRARY_PATH", "").strip()
+    if explicit_path:
+        return Path(explicit_path)
+
+    artifacts_root = os.getenv("ARTIFACTS_ROOT", "").strip()
+    candidate_paths = []
+    if artifacts_root:
+        candidate_paths.append(Path(artifacts_root) / "scenarios" / "regulated_scenario_library.json")
+
+    candidate_paths.extend(
+        [
+            Path(__file__).resolve().parents[4] / "artifacts" / "scenarios" / "regulated_scenario_library.json",
+            Path("/app/artifacts/scenarios/regulated_scenario_library.json"),
+        ]
+    )
+
+    for candidate in candidate_paths:
+        if candidate.exists():
+            return candidate
+
+    return candidate_paths[0]
 
 
 def load_scenario_library() -> list[IndustryPack]:
