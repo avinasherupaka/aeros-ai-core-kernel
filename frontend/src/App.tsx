@@ -1,8 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { AssistantPanel } from './components/assistant/AssistantPanel';
-import { SiteHealthCard } from './components/cards/SiteHealthCard';
-import { TrafficLightBadge } from './components/status/TrafficLightBadge';
+import { ControlPlaneLayout } from './components/layout/ControlPlaneLayout';
+import { PersonaTabBar } from './components/layout/PersonaTabBar';
+import { AdminDiagnostics } from './components/pages/AdminDiagnostics';
+import { AssistantChat } from './components/pages/AssistantChat';
+import { DashboardPage } from './components/pages/DashboardPage';
+import { DossierViewer } from './components/pages/DossierViewer';
+import { QAReleaseBoard } from './components/pages/QAReleaseBoard';
+import { TopologyMapPage } from './components/pages/TopologyMapPage';
+import { EmptyState } from './components/shared/EmptyState';
+import { ErrorState } from './components/shared/ErrorState';
+import { LoadingState } from './components/shared/LoadingState';
 import type {
   AssistantQueryRequest,
   AssistantResponse,
@@ -27,7 +35,9 @@ type CapaQueueItem = {
   due_label: string;
 };
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const REQUEST_TIMEOUT_MS = 6000;
+const DEFAULT_API_URL = 'http://localhost:8000';
 
 const PERSONAS: Array<{ id: PersonaType; label: string }> = [
   { id: 'system_admin', label: 'System Admin' },
@@ -46,18 +56,85 @@ const VIEWS: Array<{ id: ViewMode; label: string }> = [
   { id: 'admin', label: 'Admin Diagnostics' },
 ];
 
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  });
+const unique = (values: Array<string | undefined>): string[] => [...new Set(values.filter((value): value is string => Boolean(value)))];
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`${response.status} ${response.statusText}: ${body}`);
+const resolveApiCandidates = (): string[] => {
+  if (typeof window === 'undefined') {
+    return unique([configuredApiBaseUrl, DEFAULT_API_URL]);
   }
 
-  return response.json() as Promise<T>;
+  const sameOriginApi = `${window.location.protocol}//${window.location.hostname}:8000`;
+  const localApi = DEFAULT_API_URL;
+  const normalizedConfigured = configuredApiBaseUrl?.replace(/\/$/, '');
+
+  const configuredHost = normalizedConfigured ? new URL(normalizedConfigured).hostname : null;
+  const browserHost = window.location.hostname;
+  const rewrittenConfigured = configuredHost === 'api' && browserHost !== 'api' ? sameOriginApi : normalizedConfigured;
+
+  return unique([
+    rewrittenConfigured,
+    sameOriginApi,
+    localApi,
+    window.location.origin,
+    '',
+  ]);
+};
+
+const toUrl = (baseUrl: string, path: string): string => {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  if (!baseUrl) {
+    return path;
+  }
+  return `${baseUrl.replace(/\/$/, '')}${path}`;
+};
+
+async function fetchJsonFromBase<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(toUrl(baseUrl, path), {
+      headers: { 'Content-Type': 'application/json' },
+      ...init,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`${response.status} ${response.statusText}: ${body}`);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchJsonWithFallback<T>(
+  path: string,
+  candidates: string[],
+  init?: RequestInit,
+): Promise<{ data: T; baseUrl: string }> {
+  const errors: string[] = [];
+
+  for (const candidate of candidates) {
+    try {
+      const data = await fetchJsonFromBase<T>(candidate, path, init);
+      return { data, baseUrl: candidate };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      errors.push(`${candidate || '<relative>'}: ${reason}`);
+    }
+  }
+
+  throw new Error(`All API candidates failed for ${path}. ${errors.join(' | ')}`);
 }
 
 export default function App() {
@@ -65,6 +142,7 @@ export default function App() {
   const [view, setView] = useState<ViewMode>('dashboard');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeApiBase, setActiveApiBase] = useState<string>(configuredApiBaseUrl ?? '');
 
   const [sites, setSites] = useState<SiteHealthCardModel[]>([]);
   const [connectors, setConnectors] = useState<ConnectorStatusCard[]>([]);
@@ -76,55 +154,83 @@ export default function App() {
   const [batchId, setBatchId] = useState('BATCH-OSD-0421');
   const [dossier, setDossier] = useState<DossierReadinessCard | null>(null);
   const [assistantResponse, setAssistantResponse] = useState<AssistantResponse | null>(null);
+  const [assistantLoading, setAssistantLoading] = useState(false);
   const [adminDiagnostics, setAdminDiagnostics] = useState<Record<string, unknown> | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
+
+  const apiCandidates = useMemo(resolveApiCandidates, []);
+
+  const loadControlPlane = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const results = await Promise.allSettled([
+      fetchJsonWithFallback<{ sites: SiteHealthCardModel[] }>('/cp/sites', apiCandidates),
+      fetchJsonWithFallback<{ connectors: ConnectorStatusCard[] }>('/cp/connectors', apiCandidates),
+      fetchJsonWithFallback<{ enterprise_readiness: EnterpriseReadinessRollup }>('/cp/readiness', apiCandidates),
+      fetchJsonWithFallback<{ topology: ManufacturingSiteTopology[] }>('/cp/topology', apiCandidates),
+      fetchJsonWithFallback<{ workflow: PersonaWorkflowCard }>(`/cp/personas/${persona}/workflow`, apiCandidates),
+      fetchJsonWithFallback<{ queue: CapaQueueItem[] }>('/cp/capa/queue', apiCandidates),
+      fetchJsonWithFallback<{ dossier: DossierReadinessCard }>(`/cp/dossiers/${encodeURIComponent(batchId)}`, apiCandidates),
+    ]);
+
+    const failures: string[] = [];
+    let discoveredBaseUrl: string | null = null;
+
+    const collect = <T,>(
+      result: PromiseSettledResult<{ data: T; baseUrl: string }>,
+      assign: (value: T) => void,
+      failureLabel: string,
+    ) => {
+      if (result.status === 'fulfilled') {
+        discoveredBaseUrl ??= result.value.baseUrl;
+        assign(result.value.data);
+      } else {
+        failures.push(`${failureLabel}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      }
+    };
+
+    collect(results[0], (value) => setSites(value.sites), 'Sites');
+    collect(results[1], (value) => setConnectors(value.connectors), 'Connectors');
+    collect(results[2], (value) => setReadiness(value.enterprise_readiness), 'Readiness');
+    collect(results[3], (value) => setTopology(value.topology), 'Topology');
+    collect(results[4], (value) => setWorkflow(value.workflow), 'Workflow');
+    collect(results[5], (value) => setQueue(value.queue), 'CAPA queue');
+    collect(results[6], (value) => setDossier(value.dossier), 'Dossier');
+
+    if (discoveredBaseUrl !== null) {
+      setActiveApiBase(discoveredBaseUrl);
+    }
+
+    if (failures.length === results.length) {
+      setError('Unable to load control-plane data from any API endpoint. Verify API service reachability and port mapping.');
+    } else if (failures.length) {
+      setError(`Some control-plane sections failed to load: ${failures.join(' · ')}`);
+    }
+
+    setLoading(false);
+  }, [apiCandidates, batchId, persona]);
 
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
+    const run = async () => {
       try {
-        const [sitesData, connectorsData, readinessData, topologyData, workflowData, queueData, dossierData] = await Promise.all([
-          fetchJson<{ sites: SiteHealthCardModel[] }>('/cp/sites'),
-          fetchJson<{ connectors: ConnectorStatusCard[] }>('/cp/connectors'),
-          fetchJson<{ enterprise_readiness: EnterpriseReadinessRollup }>('/cp/readiness'),
-          fetchJson<{ topology: ManufacturingSiteTopology[] }>('/cp/topology'),
-          fetchJson<{ workflow: PersonaWorkflowCard }>(`/cp/personas/${persona}/workflow`),
-          fetchJson<{ queue: CapaQueueItem[] }>('/cp/capa/queue'),
-          fetchJson<{ dossier: DossierReadinessCard }>(`/cp/dossiers/${encodeURIComponent(batchId)}`),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setSites(sitesData.sites);
-        setConnectors(connectorsData.connectors);
-        setReadiness(readinessData.enterprise_readiness);
-        setTopology(topologyData.topology);
-        setWorkflow(workflowData.workflow);
-        setQueue(queueData.queue);
-        setDossier(dossierData.dossier);
+        await loadControlPlane();
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load control-plane data.');
-        }
-      } finally {
-        if (!cancelled) {
           setLoading(false);
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load control-plane data.');
         }
       }
     };
 
-    load();
+    run();
 
     return () => {
       cancelled = true;
     };
-  }, [persona, batchId]);
+  }, [loadControlPlane]);
 
   useEffect(() => {
     if (view !== 'admin') {
@@ -136,9 +242,9 @@ export default function App() {
     const loadAdmin = async () => {
       setAdminError(null);
       try {
-        const data = await fetchJson<Record<string, unknown>>('/cp/admin/diagnostics');
+        const data = await fetchJsonWithFallback<Record<string, unknown>>('/cp/admin/diagnostics', apiCandidates);
         if (!cancelled) {
-          setAdminDiagnostics(data);
+          setAdminDiagnostics(data.data);
         }
       } catch (adminLoadError) {
         if (!cancelled) {
@@ -153,275 +259,119 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [view]);
-
-  const statusSummary = useMemo(() => {
-    if (!readiness) {
-      return null;
-    }
-    return [
-      { label: 'Overall', value: readiness.overall_status, status: readiness.overall_status },
-      { label: 'Sites', value: String(readiness.total_sites), status: readiness.overall_status },
-      { label: 'Red', value: String(readiness.red_sites), status: readiness.red_sites ? 'red' : 'green' },
-      { label: 'Yellow', value: String(readiness.yellow_sites), status: readiness.yellow_sites ? 'yellow' : 'green' },
-      { label: 'Green', value: String(readiness.green_sites), status: readiness.green_sites ? 'green' : 'unknown' },
-    ] as const;
-  }, [readiness]);
+  }, [apiCandidates, view]);
 
   const submitAssistantQuestion = async (request: AssistantQueryRequest) => {
     setAssistantResponse(null);
+    setAssistantLoading(true);
     setError(null);
 
     try {
-      const response = await fetchJson<AssistantResponse>('/cp/assistant/query', {
+      const response = await fetchJsonWithFallback<AssistantResponse>('/cp/assistant/query', apiCandidates, {
         method: 'POST',
         body: JSON.stringify(request),
       });
-      setAssistantResponse(response);
+      setAssistantResponse(response.data);
       setView('assistant');
     } catch (queryError) {
       setError(queryError instanceof Error ? queryError.message : 'Assistant query failed.');
+    } finally {
+      setAssistantLoading(false);
     }
   };
 
   const loadBatch = async () => {
     setError(null);
+
     try {
-      const response = await fetchJson<{ dossier: DossierReadinessCard }>(`/cp/dossiers/${encodeURIComponent(batchId)}`);
-      setDossier(response.dossier);
+      const response = await fetchJsonWithFallback<{ dossier: DossierReadinessCard }>(
+        `/cp/dossiers/${encodeURIComponent(batchId)}`,
+        apiCandidates,
+      );
+      setDossier(response.data.dossier);
+      setView('dossier');
     } catch (dossierError) {
       setError(dossierError instanceof Error ? dossierError.message : 'Failed to load dossier.');
     }
   };
 
+  const apiLabel = activeApiBase || window.location.origin;
+
   return (
-    <main className="app-shell">
-      <header className="hero">
-        <p className="eyebrow">Enterprise Manufacturing Control Plane</p>
-        <h1>Areos control-plane dashboard</h1>
-        <p className="subtitle">Domain-safe observability, readiness workflows, QA release posture, and MCP assistant guidance.</p>
-        <div className="runtime-meta">
-          <span>API: {apiBaseUrl}</span>
-          <span>Mode: local mock compose stack</span>
-          <span>Frontend: React + TypeScript + Vite</span>
-        </div>
-      </header>
-
-      <section className="tabs">
-        <div>
-          <p className="tabs-label">Persona</p>
-          <div className="tab-row">
-            {PERSONAS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={item.id === persona ? 'tab active' : 'tab'}
-                onClick={() => setPersona(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
+    <ControlPlaneLayout
+      header={(
+        <header className="hero">
+          <p className="eyebrow">Enterprise Manufacturing Control Plane</p>
+          <h1>Areos control-plane dashboard</h1>
+          <p className="subtitle">
+            Domain-safe observability, readiness workflows, QA release posture, and MCP assistant guidance.
+          </p>
+          <div className="runtime-meta">
+            <span>API: {apiLabel}</span>
+            <span>Mode: local mock compose stack</span>
+            <span>Frontend: React + TypeScript + Vite</span>
           </div>
-        </div>
-        <div>
-          <p className="tabs-label">Workspace</p>
-          <div className="tab-row">
-            {VIEWS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={item.id === view ? 'tab active' : 'tab'}
-                onClick={() => setView(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {loading ? <p className="status">Loading control-plane data…</p> : null}
-      {error ? <p className="status error">{error}</p> : null}
-
-      {!loading && view === 'dashboard' ? (
-        <section className="stack">
-          <h2>Dashboard</h2>
-          {statusSummary ? (
-            <div className="metric-grid">
-              {statusSummary.map((metric) => (
-                <article key={metric.label} className="card">
-                  <p className="metric-label">{metric.label}</p>
-                  <p className="metric-value">{metric.value}</p>
-                  <TrafficLightBadge status={metric.status} />
-                </article>
-              ))}
-            </div>
-          ) : null}
-
-          <h3>Site readiness</h3>
-          <div className="grid columns-2">
-            {sites.map((site) => (
-              <SiteHealthCard key={site.site_id} site={site} />
-            ))}
-          </div>
-
-          <h3>Connector health</h3>
-          <div className="card table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Connector</th>
-                  <th>System</th>
-                  <th>Status</th>
-                  <th>SLA</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {connectors.map((connector) => (
-                  <tr key={connector.connector_label}>
-                    <td>{connector.connector_label}</td>
-                    <td>{connector.system_type}</td>
-                    <td><TrafficLightBadge status={connector.status} /></td>
-                    <td>{connector.sla_breach ? 'Breach' : 'Within target'}</td>
-                    <td>{connector.recommended_action ?? 'No action needed'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {workflow ? (
-            <article className="card">
-              <h3 style={{ marginTop: 0 }}>{workflow.persona_label} workflow</h3>
-              <p>{workflow.primary_objective}</p>
-              <div className="metric-grid">
-                {workflow.kpis.map((kpi) => (
-                  <div key={kpi.label}>
-                    <p className="metric-label">{kpi.label}</p>
-                    <p className="metric-value">{kpi.value}</p>
-                    <TrafficLightBadge status={kpi.status} />
-                  </div>
-                ))}
-              </div>
-            </article>
-          ) : null}
-        </section>
-      ) : null}
-
-      {!loading && view === 'topology' ? (
-        <section className="stack">
-          <h2>Topology map</h2>
-          <div className="grid columns-2">
-            {topology.map((siteTopology) => (
-              <article key={siteTopology.site_label} className="card">
-                <h3>{siteTopology.site_label}</h3>
-                <p>{siteTopology.archetype}</p>
-                <p><strong>Nodes:</strong> {siteTopology.nodes.length} | <strong>Flows:</strong> {siteTopology.edges.length}</p>
-                <ul>
-                  {siteTopology.nodes.slice(0, 10).map((node) => (
-                    <li key={node.node_id}>
-                      {node.node_label} ({node.node_type}) <TrafficLightBadge status={node.status} />
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {!loading && view === 'qa' ? (
-        <section className="stack">
-          <h2>QA release board</h2>
-          <div className="card table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Record</th>
-                  <th>Site</th>
-                  <th>Summary</th>
-                  <th>Owner</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queue.map((item) => (
-                  <tr key={item.record_id}>
-                    <td>{item.record_id}</td>
-                    <td>{item.site_label}</td>
-                    <td>{item.summary}</td>
-                    <td>{item.owner}</td>
-                    <td>{item.priority}</td>
-                    <td>{item.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {!loading && view === 'dossier' ? (
-        <section className="stack">
-          <h2>Dossier viewer</h2>
-          <div className="card">
-            <label htmlFor="batch-id">Batch ID</label>
-            <div className="inline-form">
-              <input id="batch-id" value={batchId} onChange={(event) => setBatchId(event.target.value)} />
-              <button type="button" className="primary-button" onClick={loadBatch}>Load dossier</button>
-            </div>
-          </div>
-          {dossier ? (
-            <article className="card">
-              <h3 style={{ marginTop: 0 }}>{dossier.batch_label}</h3>
-              <p>{dossier.product_label} · {dossier.site_label}</p>
-              <p><strong>Recommendation:</strong> {dossier.release_recommendation}</p>
-              <div className="metric-grid">
-                <div><p className="metric-label">Completeness</p><p className="metric-value">{dossier.completeness_pct}%</p></div>
-                <div><p className="metric-label">Open CAPAs</p><p className="metric-value">{dossier.open_capas}</p></div>
-                <div><p className="metric-label">QA review</p><p className="metric-value">{dossier.qa_review_status}</p></div>
-                <div><p className="metric-label">Human approval</p><p className="metric-value">{dossier.human_approval_required ? 'Required' : 'Not required'}</p></div>
-              </div>
-              <TrafficLightBadge status={dossier.dossier_status} label="Dossier status" />
-              <h4>Missing evidence</h4>
-              <ul>
-                {dossier.missing_evidence.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </article>
-          ) : null}
-        </section>
-      ) : null}
-
-      {!loading && view === 'assistant' ? (
-        <section className="stack">
-          <h2>Assistant</h2>
-          <AssistantPanel
-            persona={persona}
-            response={assistantResponse ?? undefined}
-            onSubmit={submitAssistantQuestion}
+        </header>
+      )}
+      controls={(
+        <>
+          <PersonaTabBar
+            label="Persona"
+            options={PERSONAS}
+            selected={persona}
+            onSelect={(selectedPersona) => setPersona(selectedPersona as PersonaType)}
           />
-        </section>
-      ) : null}
+          <PersonaTabBar
+            label="Workspace"
+            options={VIEWS}
+            selected={view}
+            onSelect={(selectedView) => setView(selectedView as ViewMode)}
+          />
+        </>
+      )}
+      content={(
+        <>
+          {loading ? <LoadingState /> : null}
+          {error && !loading ? <ErrorState detail={error} onRetry={loadControlPlane} /> : null}
 
-      {!loading && view === 'admin' ? (
-        <section className="stack">
-          <h2>Admin diagnostics</h2>
-          {adminError ? <p className="status error">{adminError}</p> : null}
-          {adminDiagnostics ? (
-            <article className="card">
-              <p><strong>Mode:</strong> {String(adminDiagnostics.mode ?? 'unknown')}</p>
-              <p><strong>Sections:</strong> {Object.keys(adminDiagnostics).join(', ')}</p>
-              <pre className="markdown-box">{JSON.stringify(adminDiagnostics, null, 2)}</pre>
-            </article>
-          ) : (
-            <p className="status">Loading diagnostics…</p>
-          )}
-        </section>
-      ) : null}
-    </main>
+          {!loading && !sites.length && !connectors.length && !readiness ? (
+            <EmptyState
+              title="No control-plane data available"
+              detail="Run the API and deterministic validation suite to populate enterprise workflow views."
+            />
+          ) : null}
+
+          {!loading && view === 'dashboard' ? (
+            <DashboardPage readiness={readiness} sites={sites} connectors={connectors} workflow={workflow} />
+          ) : null}
+
+          {!loading && view === 'topology' ? <TopologyMapPage topology={topology} /> : null}
+
+          {!loading && view === 'qa' ? (
+            <QAReleaseBoard queue={queue} dossier={dossier} workflow={workflow} />
+          ) : null}
+
+          {!loading && view === 'dossier' ? (
+            <DossierViewer
+              batchId={batchId}
+              dossier={dossier}
+              onBatchChange={setBatchId}
+              onLoad={loadBatch}
+            />
+          ) : null}
+
+          {!loading && view === 'assistant' ? (
+            <>
+              {assistantLoading ? <p className="status">Querying assistant…</p> : null}
+              <AssistantChat persona={persona} response={assistantResponse} onSubmit={submitAssistantQuestion} />
+            </>
+          ) : null}
+
+          {!loading && view === 'admin' ? (
+            <AdminDiagnostics diagnostics={adminDiagnostics} error={adminError} />
+          ) : null}
+        </>
+      )}
+    />
   );
 }

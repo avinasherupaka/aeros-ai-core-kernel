@@ -1,2 +1,9 @@
-/** Placeholder export for the Enterprise Control Plane component tree. */
-export const EvidenceCitation = () => null;
+import type { FC } from 'react';
+
+export interface EvidenceCitationProps {
+  citation: string;
+}
+
+export const EvidenceCitation: FC<EvidenceCitationProps> = ({ citation }) => (
+  <li className="citation-item">{citation}</li>
+);
