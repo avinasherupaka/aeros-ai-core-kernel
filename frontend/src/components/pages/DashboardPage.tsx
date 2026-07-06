@@ -85,16 +85,16 @@ export const DashboardPage: FC<DashboardPageProps> = ({ readiness, sites, connec
             <div>
               <h4>Active Alerts</h4>
               <ul className="list compact">
-                {workflow.alerts.map((alert) => (
-                  <li key={alert.summary}>{alert.summary}</li>
+                {workflow.alerts.map((alert, index) => (
+                  <li key={`${alert.summary}-${index}`}>{alert.summary}</li>
                 ))}
               </ul>
             </div>
             <div>
               <h4>Recommended Actions</h4>
               <ul className="list compact">
-                {workflow.recommended_actions.map((action) => (
-                  <li key={action.action}>{action.action}</li>
+                {workflow.recommended_actions.map((action, index) => (
+                  <li key={`${action.action}-${index}`}>{action.action}</li>
                 ))}
               </ul>
             </div>

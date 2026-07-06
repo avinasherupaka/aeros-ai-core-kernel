@@ -37,6 +37,7 @@ type CapaQueueItem = {
 
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
 const REQUEST_TIMEOUT_MS = 6000;
+const DEFAULT_API_URL = 'http://localhost:8000';
 
 const PERSONAS: Array<{ id: PersonaType; label: string }> = [
   { id: 'system_admin', label: 'System Admin' },
@@ -59,11 +60,11 @@ const unique = (values: Array<string | undefined>): string[] => [...new Set(valu
 
 const resolveApiCandidates = (): string[] => {
   if (typeof window === 'undefined') {
-    return unique([configuredApiBaseUrl, 'http://localhost:8000']);
+    return unique([configuredApiBaseUrl, DEFAULT_API_URL]);
   }
 
   const sameOriginApi = `${window.location.protocol}//${window.location.hostname}:8000`;
-  const localApi = `http://localhost:8000`;
+  const localApi = DEFAULT_API_URL;
   const normalizedConfigured = configuredApiBaseUrl?.replace(/\/$/, '');
 
   const configuredHost = normalizedConfigured ? new URL(normalizedConfigured).hostname : null;
@@ -106,6 +107,11 @@ async function fetchJsonFromBase<T>(baseUrl: string, path: string, init?: Reques
     }
 
     return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -148,6 +154,7 @@ export default function App() {
   const [batchId, setBatchId] = useState('BATCH-OSD-0421');
   const [dossier, setDossier] = useState<DossierReadinessCard | null>(null);
   const [assistantResponse, setAssistantResponse] = useState<AssistantResponse | null>(null);
+  const [assistantLoading, setAssistantLoading] = useState(false);
   const [adminDiagnostics, setAdminDiagnostics] = useState<Record<string, unknown> | null>(null);
   const [adminError, setAdminError] = useState<string | null>(null);
 
@@ -255,6 +262,8 @@ export default function App() {
   }, [apiCandidates, view]);
 
   const submitAssistantQuestion = async (request: AssistantQueryRequest) => {
+    setAssistantResponse(null);
+    setAssistantLoading(true);
     setError(null);
 
     try {
@@ -266,6 +275,8 @@ export default function App() {
       setView('assistant');
     } catch (queryError) {
       setError(queryError instanceof Error ? queryError.message : 'Assistant query failed.');
+    } finally {
+      setAssistantLoading(false);
     }
   };
 
@@ -350,7 +361,10 @@ export default function App() {
           ) : null}
 
           {!loading && view === 'assistant' ? (
-            <AssistantChat persona={persona} response={assistantResponse} onSubmit={submitAssistantQuestion} />
+            <>
+              {assistantLoading ? <p className="status">Querying assistant…</p> : null}
+              <AssistantChat persona={persona} response={assistantResponse} onSubmit={submitAssistantQuestion} />
+            </>
           ) : null}
 
           {!loading && view === 'admin' ? (

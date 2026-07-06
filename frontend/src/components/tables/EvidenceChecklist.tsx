@@ -6,8 +6,8 @@ export interface EvidenceChecklistProps {
 
 export const EvidenceChecklist: FC<EvidenceChecklistProps> = ({ items }) => (
   <ul className="list">
-    {items.map((item) => (
-      <li key={item}>{item}</li>
+    {items.map((item, index) => (
+      <li key={`${item}-${index}`}>{item}</li>
     ))}
   </ul>
 );
