@@ -1,2 +1,13 @@
-/** Placeholder export for the Enterprise Control Plane component tree. */
-export const EvidenceChecklist = () => null;
+import type { FC } from 'react';
+
+export interface EvidenceChecklistProps {
+  items: string[];
+}
+
+export const EvidenceChecklist: FC<EvidenceChecklistProps> = ({ items }) => (
+  <ul className="list">
+    {items.map((item) => (
+      <li key={item}>{item}</li>
+    ))}
+  </ul>
+);
