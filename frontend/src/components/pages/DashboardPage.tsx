@@ -5,6 +5,7 @@ import type {
   EnterpriseReadinessRollup,
   PersonaWorkflowCard,
   SiteHealthCard as SiteHealthCardModel,
+  TrafficLight,
 } from '../../types/control-plane';
 import { ConnectorTable } from '../tables/ConnectorTable';
 import { TrafficLightBadge } from '../status/TrafficLightBadge';
@@ -18,7 +19,7 @@ export interface DashboardPageProps {
 }
 
 export const DashboardPage: FC<DashboardPageProps> = ({ readiness, sites, connectors, workflow }) => {
-  const metrics = readiness
+  const metrics: Array<{ label: string; value: string; status: TrafficLight }> = readiness
     ? [
         { label: 'Overall', value: readiness.overall_status, status: readiness.overall_status },
         { label: 'Sites', value: String(readiness.total_sites), status: readiness.overall_status },
