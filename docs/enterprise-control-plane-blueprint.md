@@ -668,7 +668,7 @@ The assistant is implemented behind an MCP server/tool boundary. It answers oper
 - Do not hide degraded or stale source conditions.
 
 ### Local context ingestion
-- Use Postgres-backed read models populated by mock-ingestion-engine.
+- Use Postgres-backed read models populated by mock-ingestion.
 - Use deterministic artifact-derived workflow and evidence summaries.
 
 ### AWS production context sources
@@ -684,7 +684,7 @@ Docker Compose Services
 ├── api
 ├── ui
 ├── postgres
-├── mock-ingestion-engine
+├── mock-ingestion
 └── mcp-server
 ```
 
@@ -693,7 +693,7 @@ Docker Compose Services
 | api | Expose `/cp/*` endpoints and assistant query API. |
 | ui | Serve React/TypeScript application. |
 | postgres | Store workflow + read-model state. |
-| mock-ingestion-engine | Watch mock JSON folders and write normalized state. |
+| mock-ingestion | Watch mock JSON folders and write normalized state. |
 | mcp-server | Host local deterministic MCP tools. |
 
 ### Local DB schema
@@ -708,7 +708,7 @@ Docker Compose Services
 
 ### Startup command
 ```bash
-docker compose up --build api ui postgres mock-ingestion-engine mcp-server
+docker compose --profile ui --profile assistant up --build api ui postgres mock-ingestion mcp-server
 ```
 
 ### Developer workflow
@@ -964,7 +964,7 @@ def test_assistant_does_not_leak_infra_tokens(client):
 
 | Priority | Owner persona/team | Task | Acceptance criteria |
 | --- | --- | --- | --- |
-| P0 | Platform | Expand Docker Compose to api/ui/postgres/mock-ingestion-engine/mcp-server | Single-command startup works. |
+| P0 | Platform | Expand Docker Compose to api/ui/postgres/mock-ingestion/mcp-server | Single-command startup works. |
 | P0 | Backend | Define new normalized Pydantic models | Models are used by `/cp/*` routes and tested. |
 | P0 | Backend | Implement translation catalog service | Leakage tests pass. |
 | P0 | Backend | Create core `/cp/sites`, `/cp/topology`, `/cp/connectors`, `/cp/readiness` routes | Routes match contract snapshots. |
@@ -975,7 +975,7 @@ def test_assistant_does_not_leak_infra_tokens(client):
 | P1 | Backend | Implement persona workflow endpoints and tables | Each role gets a tailored workflow payload. |
 | P1 | Backend | Implement dossier and CAPA queue read models | QA views show evidence gaps and blockers. |
 | P1 | Platform | Define Terraform root composition for app modules | Staging plan succeeds. |
-| P2 | Backend | Build mock-ingestion-engine file watcher | Editing mock files updates state deterministically. |
+| P2 | Backend | Build mock-ingestion file watcher | Editing mock files updates state deterministically. |
 | P2 | Frontend | Build QA Release Board and Dossier Viewer | QA can inspect completeness, evidence, and approvals. |
 | P2 | Backend | Introduce MCP tool server contracts | Assistant endpoint uses approved tools only. |
 | P2 | Security | Add raw-token leakage regression tests | CI fails on disallowed tokens. |
