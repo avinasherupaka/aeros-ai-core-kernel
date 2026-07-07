@@ -251,6 +251,9 @@ export interface EvidenceGraphNode {
   node_id: string;
   node_type: string;
   label: string;
+  lane: number;
+  lane_label: string;
+  pending: boolean;
   attributes: Record<string, unknown>;
 }
 
@@ -258,11 +261,13 @@ export interface EvidenceGraphEdge {
   source_id: string;
   target_id: string;
   edge_type: string;
+  label: string;
 }
 
 export interface EvidenceGraph {
   nodes: EvidenceGraphNode[];
   edges: EvidenceGraphEdge[];
+  lanes: EvidenceLane[];
 }
 
 export interface SeriesPoint {
@@ -286,7 +291,94 @@ export interface CommandCenterEvent {
   context: EventContext;
   impact: EventImpact;
   series: SeriesPoint[];
+  series_meta: SeriesMeta;
   evidence_graph: EvidenceGraph;
   dossier: EventDossierSummary;
   required_actions: RequiredAction[];
+}
+
+// ---- Round 3 additions: series meta, layered evidence graph, floor map, full dossier ----
+export interface SeriesMeta {
+  parameter: string;
+  unit?: string | null;
+  alert_limit?: number | null;
+  action_limit?: number | null;
+  critical_limit?: number | null;
+  peak_value?: number | null;
+  peak_index?: number | null;
+  breach_from_index?: number | null;
+  breach_to_index?: number | null;
+  window_label: string;
+  guidance: string;
+}
+
+export interface EvidenceLane {
+  lane: number;
+  label: string;
+}
+
+// Config-driven Live Floor Map (ISA-95 L0-L4)
+export type FloorNodeKind =
+  | "sensor" | "plc" | "opcua" | "bms" | "scada" | "mes" | "historian"
+  | "edge_gateway" | "mqtt_broker" | "iot_core" | "lims" | "qms" | "erp"
+  | "cmms" | "lakehouse";
+
+export interface FloorMapNode {
+  id: string;
+  label: string;
+  kind: FloorNodeKind;
+  vendor?: string | null;
+  protocol?: string | null;
+  metric?: string | null;
+  room?: string | null;
+  has_connector: boolean;
+  status: TrafficLight;
+  status_note: string;
+  last_heartbeat_at?: string | null;
+}
+
+export interface FloorMapLayer {
+  level: string;
+  label: string;
+  description?: string | null;
+  nodes: FloorMapNode[];
+}
+
+export interface FloorMapFlow {
+  from: string;
+  to: string;
+  kind: string;
+  has_connector: boolean;
+  status: TrafficLight;
+}
+
+export interface FloorMapSite {
+  site_id: string;
+  site_label: string;
+  area_label: string;
+  layers: FloorMapLayer[];
+  flows: FloorMapFlow[];
+}
+
+// Full GMP dossier
+export interface DossierSection {
+  key: string;
+  title: string;
+  content: unknown;
+}
+
+export interface FullDossier {
+  event_id: string;
+  title: string;
+  batch_label: string;
+  product_label: string;
+  site_label: string;
+  generated_by: string;
+  completeness_pct: number;
+  status: EventStatus;
+  sections: DossierSection[];
+  evidence_present: string[];
+  evidence_missing: string[];
+  evidence_required: string[];
+  artifact_count: number;
 }

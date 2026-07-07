@@ -3,5 +3,18 @@
 @tailwind utilities;
 
 @layer base {
-  body { @apply bg-slate-900 text-slate-200 antialiased; }
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-app text-ink2 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
 }

@@ -81,13 +81,13 @@ const STAGE_LABELS: Record<PipelineStage, string> = {
 
 function completenessBarColor(pct: number): string {
   if (pct >= 90) return 'bg-status-green';
-  if (pct >= 60) return 'bg-status-yellow';
+  if (pct >= 60) return 'bg-status-amber';
   return 'bg-status-red';
 }
 
 function completenessTextColor(pct: number): string {
   if (pct >= 90) return 'text-status-green';
-  if (pct >= 60) return 'text-status-yellow';
+  if (pct >= 60) return 'text-status-amber';
   return 'text-status-red';
 }
 
@@ -362,7 +362,7 @@ function TLDot({ status, label }: { status: TrafficLight; label: string }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
       <div className={cx('w-2.5 h-2.5 rounded-full', c.dot)} />
-      <span className="text-[9px] text-slate-500 leading-none">{label}</span>
+      <span className="text-[9px] text-ink3 leading-none">{label}</span>
     </div>
   );
 }
@@ -378,18 +378,18 @@ function ConfirmDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-surface-900 border border-surface-700 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+      <div className="bg-panel border border-line rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
         <div className="flex items-start gap-3">
-          <ShieldCheck className="w-6 h-6 text-status-yellow mt-0.5 shrink-0" />
+          <ShieldCheck className="w-6 h-6 text-status-amber mt-0.5 shrink-0" />
           <div>
-            <h3 className="text-slate-100 font-semibold text-base leading-snug">
+            <h3 className="text-ink font-semibold text-base leading-snug">
               Confirm Human Release Decision
             </h3>
-            <p className="font-mono text-sm text-slate-400 mt-0.5">{batchId}</p>
+            <p className="font-mono text-sm text-ink2 mt-0.5">{batchId}</p>
           </div>
         </div>
 
-        <div className="bg-status-yellow/10 border border-status-yellow/30 rounded-lg p-3 text-xs text-status-yellow leading-relaxed">
+        <div className="bg-status-amber-soft border border-status-amber-line rounded-lg p-3 text-xs text-status-amber leading-relaxed">
           <strong>GxP Regulated Action.</strong> This release decision is subject
           to 21 CFR Part 211 and EU GMP Annex 11. By confirming, you attest that
           all quality criteria have been satisfied and accept personal
@@ -401,7 +401,7 @@ function ConfirmDialog({
         <div className="flex justify-end gap-2 pt-1">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-lg text-sm text-slate-300 bg-surface-800 border border-surface-700 hover:bg-surface-700 transition-colors"
+            className="px-4 py-2 rounded-lg text-sm text-ink2 bg-panel2 border border-line hover:bg-panel3 transition-colors"
           >
             Cancel
           </button>
@@ -446,9 +446,9 @@ function BatchCardTile({
 
       <div
         className={cx(
-          'bg-surface-850 border rounded-lg transition-colors',
-          hasBlock ? 'border-status-red/30' : 'border-surface-700',
-          'hover:border-surface-600',
+          'bg-panel border rounded-lg transition-colors',
+          hasBlock ? 'border-status-red/30' : 'border-line',
+          'hover:border-line2',
         )}
       >
         {/* ── Always-visible card header ── */}
@@ -458,28 +458,28 @@ function BatchCardTile({
         >
           {/* Batch ID row */}
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-xs text-slate-300 tracking-wide">
+            <span className="font-mono text-xs text-ink2 tracking-wide">
               {card.batchId}
             </span>
             {expanded ? (
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-ink3 shrink-0" />
             ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <ChevronRight className="w-3.5 h-3.5 text-ink3 shrink-0" />
             )}
           </div>
 
           {/* Product + recipe */}
           <div>
-            <p className="text-xs font-medium text-slate-200 leading-snug">
+            <p className="text-xs font-medium text-ink leading-snug">
               {card.product}
             </p>
-            <p className="font-mono text-[10px] text-slate-500">{card.recipe}</p>
+            <p className="font-mono text-[10px] text-ink3">{card.recipe}</p>
           </div>
 
           {/* Dossier completeness bar */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] text-slate-500 uppercase tracking-wider">
+              <span className="text-[9px] text-ink3 uppercase tracking-wider">
                 Dossier
               </span>
               <span
@@ -491,7 +491,7 @@ function BatchCardTile({
                 {card.completeness}%
               </span>
             </div>
-            <div className="h-1 rounded-full bg-surface-700 overflow-hidden">
+            <div className="h-1 rounded-full bg-panel3 overflow-hidden">
               <div
                 className={cx(
                   'h-full rounded-full transition-all',
@@ -523,18 +523,18 @@ function BatchCardTile({
           )}
 
           {/* Time in stage */}
-          <p className="text-[10px] text-slate-600">⏱ {card.timeInStage}</p>
+          <p className="text-[10px] text-ink3">⏱ {card.timeInStage}</p>
         </div>
 
         {/* ── Accordion body ── */}
         {expanded && (
           <div
-            className="border-t border-surface-700 p-3 space-y-3"
+            className="border-t border-line p-3 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Full readiness dimensions */}
             <div>
-              <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+              <p className="text-[9px] text-ink3 uppercase tracking-wider mb-1.5">
                 Readiness Dimensions
               </p>
               <div className="space-y-1">
@@ -553,7 +553,7 @@ function BatchCardTile({
                       <div
                         className={cx('w-2 h-2 rounded-full shrink-0', c.dot)}
                       />
-                      <span className="text-xs text-slate-300 w-24 shrink-0">
+                      <span className="text-xs text-ink2 w-24 shrink-0">
                         {dim}
                       </span>
                       <span
@@ -572,7 +572,7 @@ function BatchCardTile({
                   {card.reasonCodes.map((rc, i) => (
                     <p
                       key={i}
-                      className="text-[10px] text-slate-500 pl-2 border-l border-surface-700 leading-relaxed"
+                      className="text-[10px] text-ink3 pl-2 border-l border-line leading-relaxed"
                     >
                       {rc}
                     </p>
@@ -584,7 +584,7 @@ function BatchCardTile({
             {/* Evidence checklist */}
             {card.evidence.length > 0 && (
               <div>
-                <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+                <p className="text-[9px] text-ink3 uppercase tracking-wider mb-1.5">
                   Evidence Checklist
                 </p>
                 <div className="space-y-1">
@@ -598,7 +598,7 @@ function BatchCardTile({
                       <span
                         className={cx(
                           'text-[10px] leading-snug',
-                          ev.present ? 'text-slate-400' : 'text-status-red',
+                          ev.present ? 'text-ink2' : 'text-status-red',
                         )}
                       >
                         {ev.label}
@@ -612,7 +612,7 @@ function BatchCardTile({
             {/* Linked CAPAs */}
             {card.capas.length > 0 && (
               <div>
-                <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+                <p className="text-[9px] text-ink3 uppercase tracking-wider mb-1.5">
                   Linked CAPAs
                 </p>
                 <div className="space-y-1">
@@ -637,9 +637,9 @@ function BatchCardTile({
                       `What is blocking release for batch ${card.batchId}?`,
                     )
                   }
-                  className="w-full text-left px-2.5 py-1.5 text-[11px] text-slate-300 bg-surface-800 border border-surface-700 rounded-md hover:bg-surface-700 hover:text-slate-100 transition-colors flex items-center gap-1.5"
+                  className="w-full text-left px-2.5 py-1.5 text-[11px] text-ink2 bg-panel2 border border-line rounded-md hover:bg-panel3 hover:text-ink transition-colors flex items-center gap-1.5"
                 >
-                  <FlaskConical className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <FlaskConical className="w-3.5 h-3.5 text-ink3 shrink-0" />
                   Ask: What is blocking release?
                 </button>
               )}
@@ -651,7 +651,7 @@ function BatchCardTile({
                     'w-full px-2.5 py-1.5 text-[11px] font-semibold rounded-md transition-colors flex items-center gap-1.5',
                     card.stage === 'ready'
                       ? 'bg-status-green/20 border border-status-green/40 text-status-green hover:bg-status-green/30'
-                      : 'bg-surface-800 border border-surface-700 text-slate-500 hover:bg-surface-700 hover:text-slate-300',
+                      : 'bg-panel2 border border-line text-ink3 hover:bg-panel3 hover:text-ink2',
                   )}
                 >
                   <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
@@ -686,18 +686,18 @@ function PipelineColumn({
     ) : isCapa ? (
       <AlertTriangle className="w-3.5 h-3.5 text-status-red" />
     ) : stage === 'ready' ? (
-      <CheckCircle2 className="w-3.5 h-3.5 text-status-yellow" />
+      <CheckCircle2 className="w-3.5 h-3.5 text-status-amber" />
     ) : stage === 'in_batch' ? (
-      <Package className="w-3.5 h-3.5 text-slate-400" />
+      <Package className="w-3.5 h-3.5 text-ink3" />
     ) : (
-      <FlaskConical className="w-3.5 h-3.5 text-slate-400" />
+      <FlaskConical className="w-3.5 h-3.5 text-ink3" />
     );
 
   const headerTextColor = isReleased
     ? 'text-status-green'
     : isCapa
     ? 'text-status-red'
-    : 'text-slate-300';
+    : 'text-ink2';
 
   return (
     <div className="flex flex-col min-w-[260px] max-w-[280px] flex-shrink-0">
@@ -709,7 +709,7 @@ function PipelineColumn({
             ? 'bg-status-green/10 border-status-green/20'
             : isCapa
             ? 'bg-status-red/10 border-status-red/20'
-            : 'bg-surface-900 border-surface-700',
+            : 'bg-panel border-line',
         )}
       >
         <div className="flex items-center gap-2">
@@ -725,7 +725,7 @@ function PipelineColumn({
               ? 'bg-status-green/20 border-status-green/30 text-status-green'
               : isCapa
               ? 'bg-status-red/20 border-status-red/30 text-status-red'
-              : 'bg-surface-800 border-surface-700 text-slate-400',
+              : 'bg-panel2 border-line text-ink3',
           )}
         >
           {cards.length}
@@ -741,11 +741,11 @@ function PipelineColumn({
             ? 'bg-status-green/5 border-status-green/20'
             : isCapa
             ? 'bg-status-red/5 border-status-red/20'
-            : 'bg-surface-950 border-surface-700',
+            : 'bg-app border-line',
         )}
       >
         {cards.length === 0 ? (
-          <div className="flex items-center justify-center h-20 text-[10px] text-slate-600">
+          <div className="flex items-center justify-center h-20 text-[10px] text-ink3">
             No batches
           </div>
         ) : (
@@ -794,20 +794,20 @@ export function QAReleaseBoardV2({
   ).length;
 
   return (
-    <div className="flex flex-col h-full bg-surface-950 text-slate-100">
+    <div className="flex flex-col h-full bg-app text-ink">
       {/* Board header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-surface-800 shrink-0">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-line shrink-0">
         <div>
-          <h2 className="text-sm font-bold text-slate-100 tracking-wide flex items-center gap-2">
+          <h2 className="text-sm font-bold text-ink tracking-wide flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-status-green" />
             QA Release Board
           </h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
+          <p className="text-[11px] text-ink3 mt-0.5">
             Regulated batch disposition pipeline
           </p>
         </div>
 
-        <div className="flex items-center gap-3 text-[10px] text-slate-500">
+        <div className="flex items-center gap-3 text-[10px] text-ink3">
           <span className="font-mono">{totalBatches} batches</span>
           {blockedCount > 0 && (
             <span className="flex items-center gap-1 text-status-red">
@@ -816,7 +816,7 @@ export function QAReleaseBoardV2({
             </span>
           )}
           {workflow && (
-            <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-surface-800 border border-surface-700 text-slate-400">
+            <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-panel2 border border-line text-ink3">
               {workflow.persona_label}
             </span>
           )}

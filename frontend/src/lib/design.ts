@@ -2,17 +2,26 @@ import type { EventStatus, TrafficLight } from '../types/control-plane';
 
 export type Status = TrafficLight | EventStatus;
 
-/** Map any operational status to muted ISA-101 status tokens. */
-export const statusColor = (status: Status): { text: string; bg: string; border: string; dot: string; hex: string } => {
+export interface StatusTokens {
+  text: string;
+  bg: string;
+  border: string;
+  dot: string;
+  hex: string;
+  label: string;
+}
+
+/** Map any operational status to accessible light-theme status tokens. */
+export const statusColor = (status: Status): StatusTokens => {
   switch (status) {
     case 'red':
-      return { text: 'text-status-red', bg: 'bg-status-red/10', border: 'border-status-red/40', dot: 'bg-status-red', hex: '#ef4444' };
+      return { text: 'text-status-red', bg: 'bg-status-red-soft', border: 'border-status-red-line', dot: 'bg-status-red', hex: '#dc2626', label: 'Critical' };
     case 'yellow':
-      return { text: 'text-status-yellow', bg: 'bg-status-yellow/10', border: 'border-status-yellow/40', dot: 'bg-status-yellow', hex: '#f59e0b' };
+      return { text: 'text-status-amber', bg: 'bg-status-amber-soft', border: 'border-status-amber-line', dot: 'bg-status-amber', hex: '#d97706', label: 'Warning' };
     case 'green':
-      return { text: 'text-status-green', bg: 'bg-status-green/10', border: 'border-status-green/30', dot: 'bg-status-green', hex: '#10b981' };
+      return { text: 'text-status-green', bg: 'bg-status-green-soft', border: 'border-status-green-line', dot: 'bg-status-green', hex: '#059669', label: 'Nominal' };
     default:
-      return { text: 'text-slate-400', bg: 'bg-slate-700/20', border: 'border-slate-600/40', dot: 'bg-slate-500', hex: '#64748b' };
+      return { text: 'text-ink3', bg: 'bg-status-neutral-soft', border: 'border-line', dot: 'bg-status-neutral', hex: '#94a3b8', label: 'Not evaluated' };
   }
 };
 
@@ -37,3 +46,6 @@ export const statusRank = (status: Status): number => {
 
 export const formatNumber = (value: number | null | undefined, digits = 1): string =>
   value === null || value === undefined ? '—' : Number(value).toFixed(digits);
+
+export const titleCase = (value: string | null | undefined): string =>
+  !value ? '' : value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());

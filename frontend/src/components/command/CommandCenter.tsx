@@ -1,7 +1,8 @@
-import { AlertOctagon, CheckCircle2, CircleDashed, Clock, Lock, Send, ShieldAlert } from 'lucide-react';
+import { AlertOctagon, CheckCircle2, CircleDashed, FileText, Lock, Send, Shield } from 'lucide-react';
 import { useState } from 'react';
 import type { CommandCenterEvent } from '../../types/control-plane';
-import { cx, statusColor } from '../../lib/design';
+import { cx, statusColor, titleCase } from '../../lib/design';
+import { Panel, PanelHeader, SectionLabel, ProgressBar, EmptyHint, Badge } from '../ui/primitives';
 import { EvidenceGraphView } from '../evidence/EvidenceGraphView';
 import { Sparkline } from '../shared/Sparkline';
 
@@ -9,41 +10,44 @@ interface CommandCenterProps {
   event: CommandCenterEvent | null;
   loading?: boolean;
   onAsk?: (question: string) => void;
-  onOpenDossier?: () => void;
+  onOpenDossier?: (eventId: string) => void;
 }
 
 const ContextRow = ({ label, value }: { label: string; value: string | number | null | undefined }) => (
-  <div className="flex items-center justify-between border-b border-surface-800 py-1.5 text-xs">
-    <span className="text-slate-500">{label}</span>
-    <span className="font-medium text-slate-200">{value ?? '—'}</span>
+  <div className="flex items-center justify-between border-b border-line2 py-1.5 text-xs">
+    <span className="text-ink3">{label}</span>
+    <span className="font-medium text-ink">{value ?? '—'}</span>
   </div>
 );
 
 const actionIcon = (status: string) => {
   if (status === 'done') return <CheckCircle2 size={15} className="text-status-green" />;
   if (status === 'blocked') return <Lock size={15} className="text-status-red" />;
-  return <CircleDashed size={15} className="text-status-yellow" />;
+  return <CircleDashed size={15} className="text-status-amber" />;
 };
 
 export function CommandCenter({ event, loading, onAsk, onOpenDossier }: CommandCenterProps) {
   const [question, setQuestion] = useState('');
 
   if (loading) {
-    return <div className="p-8 text-sm text-slate-400">Loading command center…</div>;
-  }
-  if (!event) {
     return (
-      <div className="flex h-full items-center justify-center p-8 text-center">
-        <div>
-          <ShieldAlert className="mx-auto mb-3 text-status-green" size={32} />
-          <p className="text-sm text-slate-300">No active state-of-control breaches</p>
-          <p className="mt-1 text-xs text-slate-500">All monitored parameters are within validated ranges.</p>
-        </div>
+      <div className="flex h-full items-center justify-center p-8">
+        <p className="text-sm text-ink3">Loading command center…</p>
       </div>
     );
   }
+  
+  if (!event) {
+    return (
+      <EmptyHint
+        title="No active state-of-control breaches"
+        detail="All parameters within validated ranges — system is operating nominally."
+        icon={<Shield className="text-status-green" size={40} />}
+      />
+    );
+  }
 
-  const { summary, context, impact, series, evidence_graph, dossier, required_actions } = event;
+  const { summary, context, impact, series, series_meta, evidence_graph, dossier, required_actions } = event;
   const sc = statusColor(summary.status);
 
   const suggestedQueries = [
@@ -52,147 +56,208 @@ export function CommandCenter({ event, loading, onAsk, onOpenDossier }: CommandC
     'Show the evidence checklist',
   ];
 
-  return (
-    <div className="grid h-full grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-[minmax(0,30%)_minmax(0,42%)_minmax(0,28%)]">
-      {/* LEFT — Event Context */}
-      <div className="flex flex-col overflow-y-auto rounded-lg border border-surface-700 bg-surface-900">
-        <div className={cx('flex items-center gap-2 border-b px-4 py-3', sc.border, sc.bg)}>
-          <AlertOctagon size={18} className={sc.text} />
-          <div>
-            <div className={cx('text-sm font-bold uppercase tracking-wide', sc.text)}>{summary.outcome.replace(/_/g, ' ')}</div>
-            <div className="text-[11px] text-slate-400">State of Control Violation</div>
-          </div>
-        </div>
-        <div className="px-4 py-3">
-          <ContextRow label="Parameter" value={context.parameter} />
-          <ContextRow label="Asset" value={context.asset_label} />
-          <ContextRow label="Room" value={context.room_label} />
-          <ContextRow label="Duration" value={context.duration_minutes ? `${context.duration_minutes} min` : null} />
-          <ContextRow label="Alert Limit" value={context.alert_limit != null ? `${context.alert_limit}${context.unit ?? ''}` : null} />
-          <ContextRow label="Action Limit" value={context.action_limit != null ? `${context.action_limit}${context.unit ?? ''}` : null} />
-          <ContextRow label="Peak Value" value={context.peak_value != null ? `${context.peak_value}${context.unit ?? ''}` : null} />
-          <ContextRow label="Batch" value={context.batch_label} />
-          <ContextRow label="Product" value={context.product_label} />
-          <ContextRow label="Phase" value={context.phase_label} />
-        </div>
+  // Compute present evidence (required but not missing)
+  const presentEvidence = dossier.required_evidence.filter((item) => !dossier.missing_evidence.includes(item));
 
-        <div className="border-t border-surface-800 px-4 py-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Impact Assessment</div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className={cx('rounded border px-2 py-1.5', statusColor(impact.risk_level === 'critical' ? 'red' : 'yellow').border)}>
-              <div className="text-slate-500">Risk Level</div>
-              <div className="font-semibold text-slate-100">{impact.risk_level.toUpperCase()}</div>
-            </div>
-            <div className="rounded border border-surface-700 px-2 py-1.5">
-              <div className="text-slate-500">GxP Impact</div>
-              <div className="font-semibold text-slate-100">{impact.gxp_impact ? 'YES — Product at Risk' : 'No'}</div>
+  return (
+    <div className="grid h-full grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-[minmax(0,28%)_minmax(0,44%)_minmax(0,28%)]">
+      {/* LEFT COLUMN — Event Context & Impact */}
+      <div className="flex flex-col gap-3 overflow-y-auto">
+        {/* Event Header */}
+        <Panel>
+          <div className={cx('flex items-center gap-2 border-b px-4 py-3', sc.border, sc.bg)}>
+            <AlertOctagon size={18} className={sc.text} />
+            <div className="flex-1">
+              <div className={cx('text-sm font-bold uppercase tracking-wide', sc.text)}>
+                {titleCase(summary.outcome)}
+              </div>
+              <div className="text-[11px] text-ink3">State of Control Violation</div>
             </div>
           </div>
-          {impact.quality_risks.length > 0 && (
-            <ul className="mt-2 space-y-1 text-xs text-slate-400">
-              {impact.quality_risks.slice(0, 4).map((risk, index) => (
-                <li key={index} className="flex gap-1.5">
-                  <span className="text-status-red">•</span>
-                  {risk}
+          <div className="px-4 py-3">
+            <ContextRow label="Parameter" value={context.parameter} />
+            <ContextRow label="Asset" value={context.asset_label} />
+            <ContextRow label="Room" value={context.room_label} />
+            <ContextRow label="Batch" value={context.batch_label} />
+            <ContextRow label="Product" value={context.product_label} />
+            <ContextRow label="Phase" value={context.phase_label} />
+            <ContextRow label="Duration" value={context.duration_minutes ? `${context.duration_minutes} min` : null} />
+            <ContextRow label="Peak Value" value={context.peak_value != null ? `${context.peak_value}${context.unit ?? ''}` : null} />
+            <ContextRow label="Alert Limit" value={context.alert_limit != null ? `${context.alert_limit}${context.unit ?? ''}` : null} />
+            <ContextRow label="Action Limit" value={context.action_limit != null ? `${context.action_limit}${context.unit ?? ''}` : null} />
+          </div>
+        </Panel>
+
+        {/* Impact Assessment */}
+        <Panel>
+          <PanelHeader title="Impact Assessment" />
+          <div className="px-4 py-3">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className={cx('rounded border px-2 py-1.5', statusColor(impact.risk_level === 'critical' ? 'red' : 'yellow').border, statusColor(impact.risk_level === 'critical' ? 'red' : 'yellow').bg)}>
+                <div className="text-ink3">Risk Level</div>
+                <div className="font-semibold text-ink">{titleCase(impact.risk_level)}</div>
+              </div>
+              <div className="rounded border border-line px-2 py-1.5">
+                <div className="text-ink3">GxP Impact</div>
+                <div className="font-semibold text-ink">{impact.gxp_impact ? 'YES' : 'No'}</div>
+              </div>
+              <div className="col-span-2 rounded border border-line px-2 py-1.5">
+                <div className="text-ink3">CAPA Required</div>
+                <div className="font-semibold text-ink">{impact.capa_required ? 'YES — Remediation mandatory' : 'No'}</div>
+              </div>
+            </div>
+            {impact.confidence_score != null && (
+              <div className="mt-3 rounded bg-panel2 px-2 py-1.5 text-xs">
+                <div className="text-ink3">Confidence: {Math.round(impact.confidence_score * 100)}%</div>
+                {impact.confidence_explanation && (
+                  <p className="mt-1 text-[11px] italic text-ink2">{impact.confidence_explanation}</p>
+                )}
+              </div>
+            )}
+            {impact.quality_risks.length > 0 && (
+              <div className="mt-3">
+                <SectionLabel>Quality Risks</SectionLabel>
+                <ul className="mt-1 space-y-1 text-xs text-ink2">
+                  {impact.quality_risks.map((risk, index) => (
+                    <li key={index} className="flex gap-1.5">
+                      <span className="text-status-red">•</span>
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Panel>
+
+        {/* Control Chart */}
+        <Panel>
+          <PanelHeader title="Control Chart" subtitle={series_meta.window_label} />
+          <div className="px-3 pb-3 pt-2">
+            <Sparkline series={series} meta={series_meta} height={200} />
+          </div>
+        </Panel>
+      </div>
+
+      {/* CENTER COLUMN — Evidence Graph */}
+      <div className="min-h-[500px] overflow-hidden">
+        <EvidenceGraphView graph={evidence_graph} />
+      </div>
+
+      {/* RIGHT COLUMN — Actions & Dossier */}
+      <div className="flex flex-col gap-3 overflow-y-auto">
+        {/* Required Actions */}
+        <Panel>
+          <PanelHeader title="Required Actions" />
+          <div className="px-4 pb-4 pt-2">
+            <ul className="space-y-2">
+              {required_actions.map((action, index) => (
+                <li key={index} className="flex items-start gap-2 text-xs text-ink2">
+                  <span className="mt-0.5">{actionIcon(action.status)}</span>
+                  <span className={cx(action.status === 'blocked' && 'text-status-red')}>{action.label}</span>
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-
-        <div className="mt-auto border-t border-surface-800 px-4 py-3">
-          <div className="mb-1 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <span>Time Series</span>
-            <span>60 min window</span>
           </div>
-          <Sparkline data={series} limit={context.alert_limit} actionLimit={context.action_limit} />
-        </div>
-      </div>
+        </Panel>
 
-      {/* CENTER — Evidence Graph */}
-      <div className="min-h-[420px] overflow-hidden rounded-lg">
-        <EvidenceGraphView graph={evidence_graph} completenessPct={dossier.completeness_pct} />
-      </div>
+        {/* GMP Dossier Readiness */}
+        <Panel>
+          <PanelHeader
+            title="GMP Dossier Readiness"
+            subtitle="Evidence assembled for release decision — not batch or process progress"
+            right={<Badge tone="neutral">{Math.round(dossier.completeness_pct)}%</Badge>}
+          />
+          <div className="px-4 pb-4 pt-2">
+            <ProgressBar pct={dossier.completeness_pct} className="mb-3" />
+            
+            {presentEvidence.length > 0 && (
+              <div className="mb-3">
+                <SectionLabel className="mb-1.5">Present Evidence</SectionLabel>
+                <ul className="space-y-1 text-xs">
+                  {presentEvidence.slice(0, 5).map((item, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-status-green">
+                      <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                  {presentEvidence.length > 5 && (
+                    <li className="text-ink3">+ {presentEvidence.length - 5} more…</li>
+                  )}
+                </ul>
+              </div>
+            )}
 
-      {/* RIGHT — Action Panel */}
-      <div className="flex flex-col gap-3 overflow-y-auto">
-        <div className="rounded-lg border border-surface-700 bg-surface-900 p-4">
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Required Actions</div>
-          <ul className="space-y-2">
-            {required_actions.map((action, index) => (
-              <li key={index} className="flex items-center gap-2 text-xs text-slate-300">
-                {actionIcon(action.status)}
-                <span className={cx(action.status === 'blocked' && 'text-status-red')}>{action.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+            {dossier.missing_evidence.length > 0 && (
+              <div className="mb-3">
+                <SectionLabel className="mb-1.5">Missing Evidence</SectionLabel>
+                <ul className="space-y-1 text-xs">
+                  {dossier.missing_evidence.slice(0, 5).map((item, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-status-amber">
+                      <CircleDashed size={14} className="mt-0.5 shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                  {dossier.missing_evidence.length > 5 && (
+                    <li className="text-ink3">+ {dossier.missing_evidence.length - 5} more…</li>
+                  )}
+                </ul>
+              </div>
+            )}
 
-        <div className="rounded-lg border border-surface-700 bg-surface-900 p-4">
-          <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <span>Dossier Completeness</span>
-            <span className="text-slate-300">{Math.round(dossier.completeness_pct)}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-700">
-            <div
-              className={cx('h-full rounded-full', dossier.completeness_pct >= 90 ? 'bg-status-green' : dossier.completeness_pct >= 60 ? 'bg-status-yellow' : 'bg-status-red')}
-              style={{ width: `${Math.min(dossier.completeness_pct, 100)}%` }}
-            />
-          </div>
-          {dossier.missing_evidence.length > 0 && (
-            <div className="mt-2 text-xs text-slate-500">
-              Missing: <span className="text-slate-300">{dossier.missing_evidence.slice(0, 3).join(' · ')}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-1 flex-col rounded-lg border border-surface-700 bg-surface-900 p-4">
-          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-            <Clock size={12} /> MCP Assistant
-          </div>
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {suggestedQueries.map((query) => (
-              <button
-                key={query}
-                onClick={() => onAsk?.(query)}
-                className="rounded-full border border-surface-600 px-2.5 py-1 text-[11px] text-slate-300 hover:border-biotech-accent hover:text-biotech-accent"
-              >
-                {query}
-              </button>
-            ))}
-          </div>
-          <div className="mt-auto flex gap-2">
-            <input
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && question.trim()) {
-                  onAsk?.(question.trim());
-                  setQuestion('');
-                }
-              }}
-              placeholder="Ask about this event…"
-              className="flex-1 rounded border border-surface-600 bg-surface-950 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:border-biotech-accent focus:outline-none"
-            />
             <button
-              onClick={() => {
-                if (question.trim()) {
-                  onAsk?.(question.trim());
-                  setQuestion('');
-                }
-              }}
-              className="rounded bg-biotech-accent/20 px-3 text-biotech-accent hover:bg-biotech-accent/30"
+              onClick={() => onOpenDossier?.(summary.event_id)}
+              className="flex w-full items-center justify-center gap-2 rounded border border-brand-ring bg-brand-soft px-3 py-2 text-xs font-medium text-brand hover:bg-brand-hover"
             >
-              <Send size={14} />
+              <FileText size={14} />
+              View Full Dossier
             </button>
           </div>
-          <button
-            onClick={onOpenDossier}
-            className="mt-2 rounded border border-surface-600 px-3 py-2 text-xs font-medium text-slate-300 hover:border-biotech-accent hover:text-biotech-accent"
-          >
-            View Full Dossier
-          </button>
-        </div>
+        </Panel>
+
+        {/* Ask Dendrix */}
+        <Panel className="flex flex-1 flex-col">
+          <PanelHeader title="Ask Dendrix" subtitle="MCP AI Assistant" />
+          <div className="flex flex-1 flex-col px-4 pb-4 pt-2">
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {suggestedQueries.map((query) => (
+                <button
+                  key={query}
+                  onClick={() => onAsk?.(query)}
+                  className="rounded-full border border-line2 bg-panel2 px-2.5 py-1 text-[11px] text-ink2 hover:border-brand-ring hover:bg-brand-soft hover:text-brand"
+                >
+                  {query}
+                </button>
+              ))}
+            </div>
+            <div className="mt-auto flex gap-2">
+              <input
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && question.trim()) {
+                    onAsk?.(question.trim());
+                    setQuestion('');
+                  }
+                }}
+                placeholder="Ask about this event…"
+                className="flex-1 rounded border border-line2 bg-panel3 px-3 py-2 text-xs text-ink placeholder:text-ink3 focus:border-brand-ring focus:outline-none"
+              />
+              <button
+                onClick={() => {
+                  if (question.trim()) {
+                    onAsk?.(question.trim());
+                    setQuestion('');
+                  }
+                }}
+                className="rounded bg-brand-soft px-3 text-brand hover:bg-brand-hover disabled:opacity-50"
+                disabled={!question.trim()}
+              >
+                <Send size={14} />
+              </button>
+            </div>
+          </div>
+        </Panel>
       </div>
     </div>
   );

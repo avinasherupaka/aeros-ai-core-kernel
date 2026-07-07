@@ -17,33 +17,12 @@ import {
   X,
 } from 'lucide-react';
 import type { EvidenceGraph, EvidenceGraphNode } from '../../types/control-plane';
-import { cx } from '../../lib/design';
+import { cx, titleCase } from '../../lib/design';
+import { SectionLabel } from '../ui/primitives';
 
 interface EvidenceGraphViewProps {
   graph: EvidenceGraph;
-  completenessPct?: number;
 }
-
-// Concentric ring assignment: Event at center → context → evidence → decisions.
-const RING: Record<string, number> = {
-  Event: 0,
-  Batch: 1,
-  Product: 1,
-  Room: 1,
-  Equipment: 1,
-  UtilitySystem: 1,
-  Sensor: 1,
-  MaterialLot: 1,
-  Risk: 2,
-  Deviation: 2,
-  SOPClause: 2,
-  LabResult: 2,
-  EvidenceItem: 2,
-  WorkOrder: 2,
-  CAPA: 3,
-  HumanReview: 3,
-  Approval: 3,
-};
 
 const NODE_ICON: Record<string, typeof Zap> = {
   Event: Zap,
@@ -65,59 +44,45 @@ const NODE_ICON: Record<string, typeof Zap> = {
   Approval: Stamp,
 };
 
-const RING_RADIUS = [0, 150, 260, 360];
-const CX = 420;
-const CY = 300;
-
-type Positioned = EvidenceGraphNode & { x: number; y: number; ring: number };
-
-const nodeStatus = (node: EvidenceGraphNode): 'red' | 'yellow' | 'green' | 'neutral' => {
-  const type = node.node_type;
-  if (type === 'Event' || type === 'Risk' || type === 'Deviation') return 'red';
-  if (type === 'CAPA' || type === 'HumanReview' || type === 'Approval') return 'yellow';
-  if (type === 'EvidenceItem' || type === 'LabResult' || type === 'SOPClause') return 'green';
-  return 'neutral';
+// Map node_type to a category color
+const categoryColor = (nodeType: string): { bg: string; border: string; text: string } => {
+  if (['Event', 'Risk', 'Deviation'].includes(nodeType)) {
+    return { bg: 'bg-status-red-soft', border: 'border-status-red-line', text: 'text-status-red' };
+  }
+  if (['CAPA', 'HumanReview', 'Approval'].includes(nodeType)) {
+    return { bg: 'bg-status-amber-soft', border: 'border-status-amber-line', text: 'text-status-amber' };
+  }
+  if (['EvidenceItem', 'LabResult', 'SOPClause'].includes(nodeType)) {
+    return { bg: 'bg-status-green-soft', border: 'border-status-green-line', text: 'text-status-green' };
+  }
+  return { bg: 'bg-panel2', border: 'border-line2', text: 'text-ink2' };
 };
 
-const statusStroke: Record<string, string> = {
-  red: '#ef4444',
-  yellow: '#f59e0b',
-  green: '#10b981',
-  neutral: '#64748b',
-};
+type Positioned = EvidenceGraphNode & { x: number; y: number };
 
-const isPending = (node: EvidenceGraphNode): boolean =>
-  node.node_type === 'HumanReview' || node.node_type === 'Approval';
-
-export function EvidenceGraphView({ graph, completenessPct = 0 }: EvidenceGraphViewProps) {
+export function EvidenceGraphView({ graph }: EvidenceGraphViewProps) {
   const [selected, setSelected] = useState<Positioned | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
 
+  // Layout: 5 fixed columns by lane, stacked vertically within each lane
   const positioned = useMemo<Positioned[]>(() => {
-    const byRing = new Map<number, EvidenceGraphNode[]>();
+    const laneWidth = 220;
+    const nodeHeight = 60;
+    const laneStartX = 40;
+    const startY = 60;
+
+    const byLane = new Map<number, EvidenceGraphNode[]>();
     graph.nodes.forEach((node) => {
-      const ring = RING[node.node_type] ?? 2;
-      const list = byRing.get(ring) ?? [];
+      const list = byLane.get(node.lane) ?? [];
       list.push(node);
-      byRing.set(ring, list);
+      byLane.set(node.lane, list);
     });
 
     const result: Positioned[] = [];
-    byRing.forEach((nodes, ring) => {
-      const radius = RING_RADIUS[ring] ?? 360;
-      if (ring === 0) {
-        nodes.forEach((node) => result.push({ ...node, x: CX, y: CY, ring }));
-        return;
-      }
-      const count = nodes.length;
-      const startAngle = -Math.PI / 2;
+    byLane.forEach((nodes, lane) => {
+      const x = laneStartX + lane * laneWidth;
       nodes.forEach((node, index) => {
-        const angle = startAngle + (index / count) * Math.PI * 2;
-        result.push({
-          ...node,
-          ring,
-          x: CX + radius * Math.cos(angle),
-          y: CY + radius * Math.sin(angle) * 0.72,
-        });
+        result.push({ ...node, x, y: startY + index * nodeHeight });
       });
     });
     return result;
@@ -129,37 +94,56 @@ export function EvidenceGraphView({ graph, completenessPct = 0 }: EvidenceGraphV
     return map;
   }, [positioned]);
 
-  const reviewNode = positioned.find((node) => node.node_type === 'HumanReview' || node.node_type === 'Approval');
-  const ringCircumference = 2 * Math.PI * 26;
-  const dashOffset = ringCircumference * (1 - Math.min(completenessPct, 100) / 100);
+  // Compute SVG dimensions
+  const maxLane = Math.max(...positioned.map((n) => n.lane), 0);
+  const maxY = Math.max(...positioned.map((n) => n.y), 100);
+  const svgWidth = (maxLane + 1) * 220 + 80;
+  const svgHeight = maxY + 120;
+
+  const connectedNodes = useMemo(() => {
+    if (!selected) return new Set<string>();
+    const connected = new Set<string>([selected.node_id]);
+    graph.edges.forEach((edge) => {
+      if (edge.source_id === selected.node_id) connected.add(edge.target_id);
+      if (edge.target_id === selected.node_id) connected.add(edge.source_id);
+    });
+    return connected;
+  }, [selected, graph.edges]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg border border-surface-700 bg-surface-950">
-      <div className="absolute left-3 top-3 z-10 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-400">
-        <span className="h-2 w-2 rounded-full bg-biotech-accent" />
-        Evidence Graph
+    <div className="relative h-full w-full overflow-auto rounded-lg border border-line bg-panel shadow-panel">
+      <SectionLabel className="absolute left-4 top-4 z-10">Evidence Graph — Causal Flow</SectionLabel>
+
+      {/* Lane legend (bottom right) */}
+      <div className="absolute bottom-4 right-4 z-10 rounded border border-line bg-panel px-3 py-2 text-[10px] text-ink3 shadow-raised">
+        <div className="font-semibold text-ink2">Flow Stages</div>
+        {graph.lanes.map((l) => (
+          <div key={l.lane} className="mt-1">
+            {l.lane}. {l.label}
+          </div>
+        ))}
       </div>
 
-      <svg viewBox="0 0 840 600" className="h-full w-full" role="img" aria-label="Evidence graph">
+      <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="min-h-[500px] w-full" role="img" aria-label="Evidence graph">
         <defs>
-          <marker id="eg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
+          <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-highlight" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#6366f1" />
           </marker>
         </defs>
 
-        {/* Concentric ring guides */}
-        {[1, 2, 3].map((ring) => (
-          <ellipse
-            key={ring}
-            cx={CX}
-            cy={CY}
-            rx={RING_RADIUS[ring]}
-            ry={RING_RADIUS[ring] * 0.72}
-            fill="none"
-            stroke="#1b2333"
-            strokeWidth={1}
-            strokeDasharray="2 6"
-          />
+        {/* Lane column headers */}
+        {graph.lanes.map((lane) => (
+          <text
+            key={lane.lane}
+            x={40 + lane.lane * 220}
+            y={30}
+            className="text-[11px] font-semibold uppercase tracking-wide fill-ink3"
+          >
+            {lane.label}
+          </text>
         ))}
 
         {/* Edges */}
@@ -167,106 +151,102 @@ export function EvidenceGraphView({ graph, completenessPct = 0 }: EvidenceGraphV
           const source = posById.get(edge.source_id);
           const target = posById.get(edge.target_id);
           if (!source || !target) return null;
-          const midX = (source.x + target.x) / 2;
-          const midY = (source.y + target.y) / 2 - 24;
-          return (
-            <g key={`${edge.source_id}-${edge.target_id}-${index}`}>
-              <path
-                d={`M ${source.x} ${source.y} Q ${midX} ${midY} ${target.x} ${target.y}`}
-                fill="none"
-                stroke="#334155"
-                strokeWidth={1.4}
-                markerEnd="url(#eg-arrow)"
-              />
-              <text x={midX} y={midY} textAnchor="middle" className="fill-slate-500" style={{ fontSize: 8 }}>
-                {edge.edge_type.replace(/_/g, ' ').toLowerCase()}
-              </text>
-            </g>
-          );
-        })}
 
-        {/* Nodes */}
-        {positioned.map((node) => {
-          const status = nodeStatus(node);
-          const stroke = statusStroke[status];
-          const Icon = NODE_ICON[node.node_type] ?? Boxes;
-          const pending = isPending(node);
-          const isCenter = node.ring === 0;
-          const r = isCenter ? 30 : 22;
+          const x1 = source.x + 100;
+          const y1 = source.y + 22;
+          const x2 = target.x;
+          const y2 = target.y + 22;
+          const midX = (x1 + x2) / 2;
+
+          const isHighlighted =
+            (selected && (connectedNodes.has(edge.source_id) || connectedNodes.has(edge.target_id))) ||
+            hoveredEdge === `${edge.source_id}-${edge.target_id}`;
+
           return (
             <g
-              key={node.node_id}
-              transform={`translate(${node.x}, ${node.y})`}
+              key={`${edge.source_id}-${edge.target_id}-${index}`}
+              onMouseEnter={() => setHoveredEdge(`${edge.source_id}-${edge.target_id}`)}
+              onMouseLeave={() => setHoveredEdge(null)}
               className="cursor-pointer"
-              onClick={() => setSelected(node)}
             >
-              {pending && <circle r={r + 6} fill="none" stroke={stroke} strokeWidth={1} className="animate-pulse-node" />}
-              <circle
-                r={r}
-                fill="#0f1420"
-                stroke={stroke}
-                strokeWidth={isCenter ? 2.5 : 1.6}
-                className={cx(selected?.node_id === node.node_id && 'drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]')}
+              <path
+                d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                fill="none"
+                stroke={isHighlighted ? '#6366f1' : '#cbd5e1'}
+                strokeWidth={isHighlighted ? 2 : 1.2}
+                markerEnd={isHighlighted ? 'url(#arrow-highlight)' : 'url(#arrow-flow)'}
               />
-              <foreignObject x={-10} y={-10} width={20} height={20}>
-                <div className="flex h-5 w-5 items-center justify-center">
-                  <Icon size={isCenter ? 16 : 13} color={stroke} />
-                </div>
-              </foreignObject>
-              <text y={r + 12} textAnchor="middle" className="fill-slate-300" style={{ fontSize: 9, fontWeight: 500 }}>
-                {node.label.length > 22 ? `${node.label.slice(0, 20)}…` : node.label}
-              </text>
+              {hoveredEdge === `${edge.source_id}-${edge.target_id}` && (
+                <text x={midX} y={(y1 + y2) / 2 - 6} textAnchor="middle" className="text-[9px] fill-ink3">
+                  {titleCase(edge.edge_type)}
+                </text>
+              )}
             </g>
           );
         })}
 
-        {/* Completeness ring around the human-review node */}
-        {reviewNode && (
-          <g transform={`translate(${reviewNode.x + 34}, ${reviewNode.y - 30})`}>
-            <circle r={26} fill="none" stroke="#1b2333" strokeWidth={4} />
-            <circle
-              r={26}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth={4}
-              strokeLinecap="round"
-              strokeDasharray={ringCircumference}
-              strokeDashoffset={dashOffset}
-              transform="rotate(-90)"
-            />
-            <text textAnchor="middle" dy={4} className="fill-slate-100" style={{ fontSize: 12, fontWeight: 600 }}>
-              {Math.round(completenessPct)}%
-            </text>
-          </g>
-        )}
+        {/* Nodes as foreignObject (HTML cards) */}
+        {positioned.map((node) => {
+          const color = categoryColor(node.node_type);
+          const Icon = NODE_ICON[node.node_type] ?? Boxes;
+          const isSelected = selected?.node_id === node.node_id;
+          const isConnected = connectedNodes.has(node.node_id);
+          const isPendingNode = node.pending;
+
+          return (
+            <foreignObject key={node.node_id} x={node.x} y={node.y} width={200} height={44}>
+              <div
+                className={cx(
+                  'flex h-11 cursor-pointer items-center gap-2 rounded border px-2.5 py-2 shadow-sm transition-all',
+                  color.bg,
+                  color.border,
+                  isSelected && 'ring-2 ring-brand shadow-raised',
+                  isConnected && !isSelected && 'ring-1 ring-brand/40',
+                  isPendingNode && 'animate-breathe'
+                )}
+                onClick={() => setSelected(node)}
+                title={node.label}
+              >
+                <Icon size={16} className={color.text} />
+                <div className="flex-1 overflow-hidden">
+                  <div className="truncate text-xs font-medium text-ink">{node.label}</div>
+                  <div className="truncate text-[10px] text-ink3">{titleCase(node.node_type)}</div>
+                </div>
+                {isPendingNode && <span className="h-2 w-2 rounded-full bg-status-amber animate-pulse" />}
+              </div>
+            </foreignObject>
+          );
+        })}
       </svg>
 
-      {/* Progressive-disclosure detail panel */}
+      {/* Detail panel */}
       {selected && (
-        <div className="absolute right-0 top-0 z-20 flex h-full w-72 flex-col border-l border-surface-700 bg-surface-900/95 backdrop-blur">
-          <div className="flex items-center justify-between border-b border-surface-700 px-4 py-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-slate-500">{selected.node_type}</div>
-              <div className="text-sm font-semibold text-slate-100">{selected.label}</div>
+        <div className="absolute right-0 top-0 z-20 flex h-full w-80 flex-col border-l border-line bg-panel shadow-float">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <div className="flex-1 overflow-hidden">
+              <SectionLabel>{titleCase(selected.node_type)}</SectionLabel>
+              <div className="mt-1 truncate text-sm font-semibold text-ink" title={selected.label}>
+                {selected.label}
+              </div>
             </div>
-            <button onClick={() => setSelected(null)} className="rounded p-1 text-slate-400 hover:bg-surface-700 hover:text-slate-100">
+            <button onClick={() => setSelected(null)} className="rounded p-1 text-ink3 hover:bg-panel2 hover:text-ink">
               <X size={16} />
             </button>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3 text-xs">
-            {isPending(selected) && (
-              <div className="flex items-center gap-2 rounded border border-status-yellow/40 bg-status-yellow/10 px-3 py-2 text-status-yellow">
+            {selected.pending && (
+              <div className="flex items-center gap-2 rounded border border-status-amber-line bg-status-amber-soft px-3 py-2 text-status-amber">
                 <UserCheck size={14} />
-                Human review required before release
+                Pending human review
               </div>
             )}
             {Object.entries(selected.attributes).length === 0 ? (
-              <p className="text-slate-500">No additional attributes.</p>
+              <p className="text-ink3">No additional attributes.</p>
             ) : (
               Object.entries(selected.attributes).map(([key, value]) => (
-                <div key={key} className="border-b border-surface-800 pb-2">
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500">{key.replace(/_/g, ' ')}</div>
-                  <div className="text-slate-200">{String(value)}</div>
+                <div key={key} className="border-b border-line2 pb-2">
+                  <SectionLabel>{titleCase(key)}</SectionLabel>
+                  <div className="mt-1 text-ink2">{String(value)}</div>
                 </div>
               ))
             )}

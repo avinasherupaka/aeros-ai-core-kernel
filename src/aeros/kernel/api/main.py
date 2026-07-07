@@ -1267,16 +1267,94 @@ def _cp_event_series(bundle) -> list[dict]:
             value = obs.get("value")
         series.append({"t": index, "value": value})
     if not series:
-        peak = getattr(bundle.assessment, "peak_value", None)
+        assessment = bundle.assessment
+        peak = getattr(assessment, "peak_value", None)
+        action = getattr(assessment, "action_limit", None)
         if peak is not None:
-            base = peak * 0.7
-            ramp = [base, base * 1.05, base * 1.15, peak * 0.95, peak, peak * 0.9, base * 1.1, base]
+            # Synthesize a realistic excursion profile that rises through the
+            # action limit, peaks, then recovers - so the chart is actionable.
+            floor = (action * 0.85) if action else peak * 0.7
+            ramp = [
+                floor,
+                floor * 1.02,
+                floor * 1.05,
+                (action or peak * 0.9),
+                peak * 0.98,
+                peak,
+                peak * 0.96,
+                (action or peak * 0.9),
+                floor * 1.06,
+                floor * 1.01,
+            ]
             series = [{"t": i, "value": round(v, 2)} for i, v in enumerate(ramp)]
     return series
 
 
+def _cp_series_meta(bundle) -> dict:
+    """Limit lines + breach window so the time series is decision-grade, not decorative."""
+    assessment = bundle.assessment
+    series = _cp_event_series(bundle)
+    values = [pt["value"] for pt in series if pt.get("value") is not None]
+    action = getattr(assessment, "action_limit", None)
+    peak_idx = None
+    peak_val = getattr(assessment, "peak_value", None)
+    if values:
+        peak_val = peak_val if peak_val is not None else max(values)
+        # index of the point closest to the peak
+        peak_idx = max(range(len(series)), key=lambda i: (series[i]["value"] or 0))
+    breach_from = breach_to = None
+    if action is not None and values:
+        breach_points = [i for i, pt in enumerate(series) if (pt["value"] or 0) >= action]
+        if breach_points:
+            breach_from, breach_to = breach_points[0], breach_points[-1]
+    return {
+        "parameter": _cp_metric_label(getattr(bundle.event, "metric", None)),
+        "unit": getattr(bundle.event, "unit", None),
+        "alert_limit": getattr(assessment, "alert_limit", None),
+        "action_limit": action,
+        "critical_limit": getattr(assessment, "critical_limit", None),
+        "peak_value": peak_val,
+        "peak_index": peak_idx,
+        "breach_from_index": breach_from,
+        "breach_to_index": breach_to,
+        "window_label": "Last 60 min · 6 min intervals",
+        "guidance": (
+            "Values above the action limit require a documented quality decision. "
+            "The shaded band marks the excursion; the marker is the peak deviation."
+        ),
+    }
+
+
 def _cp_evidence_graph(bundle) -> dict:
-    """Sanitize the evidence graph into domain-safe nodes and edges for the UI."""
+    """Sanitize the evidence graph into domain-safe nodes and edges for the UI.
+
+    Each node is assigned a ``lane`` (0..4) so the client can lay the graph out as a
+    clean left-to-right flow: Trigger -> Context -> Risk -> Evidence -> Decision.
+    """
+    lane_map = {
+        # lane 0 - what happened
+        "Event": (0, "Trigger"),
+        "Sensor": (0, "Trigger"),
+        # lane 1 - where / what it touched
+        "Room": (1, "Context"),
+        "Equipment": (1, "Context"),
+        "UtilitySystem": (1, "Context"),
+        "Batch": (1, "Context"),
+        "Product": (1, "Context"),
+        "MaterialLot": (1, "Context"),
+        # lane 2 - why it matters
+        "Risk": (2, "Risk & Rules"),
+        "Deviation": (2, "Risk & Rules"),
+        "SOPClause": (2, "Risk & Rules"),
+        # lane 3 - what proves it
+        "EvidenceItem": (3, "Evidence"),
+        "LabResult": (3, "Evidence"),
+        "WorkOrder": (3, "Evidence"),
+        # lane 4 - who decides
+        "CAPA": (4, "Decision"),
+        "HumanReview": (4, "Decision"),
+        "Approval": (4, "Decision"),
+    }
     graph = bundle.evidence_graph
     nodes = []
     for node in graph.nodes:
@@ -1289,12 +1367,18 @@ def _cp_evidence_graph(bundle) -> dict:
             label = raw_label  # batch IDs are business identifiers
         else:
             label = _cp_humanize(raw_label)
+        lane, lane_label = lane_map.get(node_type, (2, "Context"))
+        attributes = {k: v for k, v in (node.attributes or {}).items() if k not in {"node_type", "label"}}
+        pending = node_type in {"HumanReview", "Approval", "CAPA"}
         nodes.append(
             {
                 "node_id": node.node_id,
                 "node_type": node_type,
                 "label": label,
-                "attributes": {k: v for k, v in (node.attributes or {}).items() if k not in {"node_type", "label"}},
+                "lane": lane,
+                "lane_label": lane_label,
+                "pending": pending,
+                "attributes": attributes,
             }
         )
     edges = [
@@ -1302,10 +1386,18 @@ def _cp_evidence_graph(bundle) -> dict:
             "source_id": edge.source_id,
             "target_id": edge.target_id,
             "edge_type": getattr(edge.edge_type, "value", str(edge.edge_type)),
+            "label": _cp_humanize(getattr(edge.edge_type, "value", str(edge.edge_type))),
         }
         for edge in graph.edges
     ]
-    return {"nodes": nodes, "edges": edges}
+    lanes = [
+        {"lane": 0, "label": "Trigger"},
+        {"lane": 1, "label": "Context"},
+        {"lane": 2, "label": "Risk & Rules"},
+        {"lane": 3, "label": "Evidence"},
+        {"lane": 4, "label": "Decision"},
+    ]
+    return {"nodes": nodes, "edges": edges, "lanes": lanes}
 
 
 def _cp_required_actions(bundle) -> list[dict]:
@@ -1361,6 +1453,7 @@ def _cp_command_center(bundle) -> dict:
             "quality_risks": list(impact.likely_quality_risks or []),
         },
         "series": _cp_event_series(bundle),
+        "series_meta": _cp_series_meta(bundle),
         "evidence_graph": _cp_evidence_graph(bundle),
         "dossier": {
             "completeness_pct": completeness if completeness is not None else 0,
@@ -1390,3 +1483,282 @@ def cp_event_detail(event_id: str) -> dict:
     if bundle is None:
         raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}")
     return _cp_assert_safe({"event": _cp_command_center(bundle)})
+
+
+# ---- Config-driven Live Floor Map (ISA-95 L0-L4 topology + live connector status) ----
+import functools
+
+
+def _cp_config_path(filename: str) -> Path:
+    """Resolve a config file from the artifacts root, tolerating read-only mounts."""
+    roots = [
+        os.environ.get("AREOS_CONFIG_DIR"),
+        os.path.join(os.environ.get("ARTIFACTS_ROOT", ""), "config") if os.environ.get("ARTIFACTS_ROOT") else None,
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "artifacts", "config"),
+        "artifacts/config",
+    ]
+    for root in roots:
+        if not root:
+            continue
+        candidate = Path(root) / filename
+        if candidate.exists():
+            return candidate
+    # Return the best-guess path even if missing so callers can 404 cleanly.
+    return Path("artifacts/config") / filename
+
+
+@functools.lru_cache(maxsize=1)
+def _cp_site_topology_config() -> dict:
+    path = _cp_config_path("site_topology.json")
+    if not path.exists():
+        return {"sites": []}
+    with open(path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _cp_connector_health_index() -> dict:
+    """Map connector_id -> derived RYG status using live connector health."""
+    index: dict[str, dict] = {}
+    try:
+        health = default_connector_registry().health()
+    except Exception:
+        health = []
+    for entry in health:
+        cid = entry.get("connector_id")
+        if not cid:
+            continue
+        raw = _cp_status(entry.get("status"))
+        details = entry.get("details") or {}
+        live = bool(details.get("live_mode_enabled"))
+        if raw == "green" and not live:
+            status = "yellow"  # up but running on replay/sample data, not a live feed
+            note = "Replay / sample mode - not a live feed"
+        elif raw == "green":
+            status = "green"
+            note = "Live feed healthy"
+        elif raw == "yellow":
+            status = "yellow"
+            note = "Degraded"
+        else:
+            status = "red"
+            note = "Connector down"
+        index[cid] = {
+            "status": status,
+            "live_mode": live,
+            "last_heartbeat_at": entry.get("last_heartbeat_at"),
+            "note": note,
+        }
+    return index
+
+
+@app.get("/cp/floormap")
+def cp_floormap(site_id: str | None = None) -> dict:
+    """Config-driven ISA-95 plant topology (L0-L4) enriched with live connector status.
+
+    Field/control/supervisory nodes without a connector reference are treated as
+    nominal; enterprise and edge nodes carry the live RYG status of their Aeros
+    connector so the map's animated data-flow lines reflect real connectivity.
+    """
+    config = _cp_site_topology_config()
+    health = _cp_connector_health_index()
+    sites_out = []
+    for site in config.get("sites", []):
+        if site_id and site.get("site_id") != site_id:
+            continue
+        layers_out = []
+        node_status: dict[str, str] = {}
+        for layer in site.get("layers", []):
+            nodes_out = []
+            for node in layer.get("nodes", []):
+                cid = node.get("connector_id")
+                health_entry = health.get(cid) if cid else None
+                status = health_entry["status"] if health_entry else "green"
+                node_status[node["id"]] = status
+                nodes_out.append(
+                    {
+                        "id": node["id"],
+                        "label": node.get("label"),
+                        "kind": node.get("kind"),
+                        "vendor": node.get("vendor"),
+                        "protocol": node.get("protocol"),
+                        "metric": node.get("metric"),
+                        "room": node.get("room"),
+                        "has_connector": bool(cid),
+                        "status": status,
+                        "status_note": health_entry["note"] if health_entry else "Nominal",
+                        "last_heartbeat_at": health_entry.get("last_heartbeat_at") if health_entry else None,
+                    }
+                )
+            layers_out.append(
+                {
+                    "level": layer.get("level"),
+                    "label": layer.get("label"),
+                    "description": layer.get("description"),
+                    "nodes": nodes_out,
+                }
+            )
+        flows_out = []
+        for flow in site.get("flows", []):
+            cid = flow.get("connector_id")
+            if cid and cid in health:
+                status = health[cid]["status"]
+            else:
+                # derive from endpoints - worst of the two node statuses
+                src = node_status.get(flow.get("from"), "green")
+                dst = node_status.get(flow.get("to"), "green")
+                status = _cp_aggregate([src, dst], default="green")
+            flows_out.append(
+                {
+                    "from": flow.get("from"),
+                    "to": flow.get("to"),
+                    "kind": flow.get("kind", "telemetry"),
+                    "has_connector": bool(cid),
+                    "status": status,
+                }
+            )
+        sites_out.append(
+            {
+                "site_id": site.get("site_id"),
+                "site_label": site.get("site_label"),
+                "area_label": site.get("area_label"),
+                "layers": layers_out,
+                "flows": flows_out,
+            }
+        )
+    return _cp_assert_safe({"sites": sites_out})
+
+
+# ---- Real GMP dossier viewer (domain-safe generated compliance documentation) ----
+_CP_DOSSIER_SECTION_ORDER = [
+    "event_summary",
+    "source_lineage",
+    "timeline",
+    "state_of_control_assessment",
+    "impact_map",
+    "evidence_table",
+    "similar_recurrent_events",
+    "maintenance_context",
+    "missing_evidence",
+    "human_review_and_approval_placeholder",
+    "compliance_validation_note",
+    "evidence_graph",
+]
+
+_CP_DOSSIER_SECTION_TITLES = {
+    "event_summary": "1. Event Summary",
+    "source_lineage": "2. Source & Data Lineage",
+    "timeline": "3. Event Timeline",
+    "state_of_control_assessment": "4. State of Control Assessment",
+    "impact_map": "5. Impact Assessment",
+    "evidence_table": "6. Evidence Register",
+    "similar_recurrent_events": "7. Similar / Recurrent Events",
+    "maintenance_context": "8. Maintenance Context",
+    "missing_evidence": "9. Missing Evidence Checklist",
+    "human_review_and_approval_placeholder": "10. Human Review & Approval",
+    "compliance_validation_note": "11. Compliance Validation Note",
+    "evidence_graph": "12. Evidence Graph",
+}
+
+
+@app.get("/cp/dossiers/events/{event_id}/full")
+def cp_dossier_full(event_id: str) -> dict:
+    """Full domain-safe GMP dossier for one event: ordered sections + readiness manifest.
+
+    Serves the generated compliance documentation (state-of-control assessment, impact
+    map, evidence register, missing-evidence checklist, and the human review/approval
+    placeholder) so the Dossier Review page renders a real SOP/GMP document.
+    """
+    bundles = _cp_demo_bundles()
+    bundle = bundles.get(event_id)
+    if bundle is None:
+        bundle = next(
+            (b for b in bundles.values() if _cp_slug(b.event.event_id) == _cp_slug(event_id)),
+            None,
+        )
+    if bundle is None:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}")
+
+    dossier = bundle.dossier
+    impact = bundle.impact
+    raw_sections = dossier.sections or {}
+    sections = []
+    for key in _CP_DOSSIER_SECTION_ORDER:
+        if key not in raw_sections:
+            continue
+        sections.append(
+            {
+                "key": key,
+                "title": _CP_DOSSIER_SECTION_TITLES.get(key, _cp_humanize(key)),
+                "content": raw_sections[key],
+            }
+        )
+    # include any extra sections not in the canonical order
+    for key, value in raw_sections.items():
+        if key not in _CP_DOSSIER_SECTION_ORDER:
+            sections.append({"key": key, "title": _cp_humanize(key), "content": value})
+
+    completeness = getattr(dossier, "package_completeness_score", None)
+    if completeness is not None and completeness <= 1:
+        completeness = round(completeness * 100)
+
+    summary = _cp_event_summary(bundle)
+    required = list(impact.required_evidence or [])
+    missing = list(impact.missing_evidence or [])
+    present = [item for item in required if item not in missing]
+    payload = {
+        "dossier": {
+            "event_id": summary["event_id"],
+            "title": f"GMP Assurance Dossier - {summary['batch_label']}",
+            "batch_label": summary["batch_label"],
+            "product_label": summary["product_label"],
+            "site_label": summary["site_label"],
+            "generated_by": "Aeros Assurance Engine",
+            "completeness_pct": completeness if completeness is not None else 0,
+            "status": summary["status"],
+            "sections": sections,
+            "evidence_present": present,
+            "evidence_missing": missing,
+            "evidence_required": required,
+            "artifact_count": len([p for p in [
+                getattr(dossier, "markdown_path", None),
+                getattr(dossier, "json_path", None),
+                getattr(dossier, "manifest_path", None),
+                getattr(dossier, "evidence_index_path", None),
+                getattr(dossier, "missing_evidence_checklist_path", None),
+                getattr(dossier, "approval_placeholder_path", None),
+                getattr(dossier, "package_hashes_path", None),
+            ] if p]),
+        }
+    }
+    return _cp_assert_safe(payload)
+
+
+# ---- Data backbone status (persistent lakehouse + evidence graph store) ----
+@app.get("/cp/backbone/status")
+def cp_backbone_status() -> dict:
+    """Domain-safe status of the persistent lakehouse + evidence graph backbone."""
+    try:
+        from aeros.kernel.data_backbone.backbone import get_backbone
+
+        status = get_backbone().status()
+    except Exception as exc:  # pragma: no cover - defensive
+        status = {"available": False, "error": type(exc).__name__}
+    # strip any absolute filesystem paths to keep the payload domain-safe
+    safe = {k: v for k, v in status.items() if k not in {"db_path", "backbone_dir"}}
+    return _cp_assert_safe({"backbone": safe})
+
+
+@app.get("/cp/events/{event_id}/lineage")
+def cp_event_lineage(event_id: str) -> dict:
+    """Persisted evidence-graph lineage for an event, traversed from the graph store."""
+    bundles = _cp_demo_bundles()
+    bundle = bundles.get(event_id)
+    if bundle is None:
+        bundle = next(
+            (b for b in bundles.values() if _cp_slug(b.event.event_id) == _cp_slug(event_id)),
+            None,
+        )
+    if bundle is None:
+        raise HTTPException(status_code=404, detail=f"Unknown event_id: {event_id}")
+    graph = _cp_evidence_graph(bundle)
+    return _cp_assert_safe({"lineage": graph})

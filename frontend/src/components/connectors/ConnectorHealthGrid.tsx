@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { ConnectorStatusCard, TrafficLight } from '../../types/control-plane';
 import { statusColor, cx } from '../../lib/design';
+import { Panel, PanelHeader, StatusDot, Badge, Legend, EmptyHint } from '../ui/primitives';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -14,29 +15,6 @@ export interface ConnectorHealthGridProps {
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
-
-function LED({
-  status,
-  pulse = true,
-  size = 'sm',
-}: {
-  status: TrafficLight;
-  pulse?: boolean;
-  size?: 'xs' | 'sm' | 'md';
-}) {
-  const { dot } = statusColor(status);
-  const dim = size === 'xs' ? 'w-1.5 h-1.5' : size === 'sm' ? 'w-2 h-2' : 'w-2.5 h-2.5';
-  return (
-    <span
-      className={cx(
-        'inline-block rounded-full flex-shrink-0',
-        dim,
-        dot,
-        pulse && status === 'green' ? 'animate-pulse' : '',
-      )}
-    />
-  );
-}
 
 /** Deterministic SLA % derived from connector label hash. */
 function deriveSla(c: ConnectorStatusCard): number {
@@ -113,12 +91,12 @@ function IngestionPulse({ connectors }: { connectors: ConnectorStatusCard[] }) {
   ];
 
   return (
-    <section className="rounded-lg border border-surface-700 bg-surface-900 p-4">
+    <Panel className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink3">
           Ingestion Pulse
         </p>
-        <span className="text-[10px] text-slate-600 font-mono">live · data pipeline</span>
+        <span className="text-[10px] text-ink3 font-mono">live · data pipeline</span>
       </div>
 
       {/* Pipeline row */}
@@ -136,13 +114,13 @@ function IngestionPulse({ connectors }: { connectors: ConnectorStatusCard[] }) {
                 )}
               >
                 <div className="flex items-center gap-1.5">
-                  <LED status={stage.status} size="xs" />
+                  <StatusDot status={stage.status} size={6} />
                   <stage.Icon className={cx('w-3.5 h-3.5', sc.text)} />
                 </div>
-                <span className="text-[11px] font-semibold text-slate-200 text-center leading-tight whitespace-nowrap">
+                <span className="text-[11px] font-semibold text-ink text-center leading-tight whitespace-nowrap">
                   {stage.label}
                 </span>
-                <span className="text-[10px] text-slate-500 text-center whitespace-nowrap">
+                <span className="text-[10px] text-ink3 text-center whitespace-nowrap">
                   {stage.metric}
                 </span>
               </div>
@@ -150,13 +128,13 @@ function IngestionPulse({ connectors }: { connectors: ConnectorStatusCard[] }) {
               {/* Arrow connector */}
               {i < stages.length - 1 && (
                 <div className="flex items-center flex-shrink-0 mx-0.5">
-                  <div className="w-4 h-px bg-surface-600" />
+                  <div className="w-4 h-px bg-line" />
                   <div
                     className="w-0 h-0 flex-shrink-0"
                     style={{
                       borderTop: '4px solid transparent',
                       borderBottom: '4px solid transparent',
-                      borderLeft: '6px solid #31405a',
+                      borderLeft: '6px solid #cbd5e1',
                     }}
                   />
                 </div>
@@ -168,33 +146,33 @@ function IngestionPulse({ connectors }: { connectors: ConnectorStatusCard[] }) {
 
       {/* Overall throughput summary */}
       <div className="mt-3 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 bg-surface-800 rounded px-2.5 py-1">
-          <Gauge className="w-3 h-3 text-slate-500" />
-          <span className="text-[11px] text-slate-400">Total throughput</span>
+        <div className="flex items-center gap-1.5 bg-panel2 rounded px-2.5 py-1">
+          <Gauge className="w-3 h-3 text-ink3" />
+          <span className="text-[11px] text-ink2">Total throughput</span>
           <span className="text-[11px] font-semibold text-status-green">
             {evHr.toLocaleString()} records/hr
           </span>
         </div>
-        <div className="flex items-center gap-1.5 bg-surface-800 rounded px-2.5 py-1">
-          <Activity className="w-3 h-3 text-slate-500" />
-          <span className="text-[11px] text-slate-400">Worst latency</span>
+        <div className="flex items-center gap-1.5 bg-panel2 rounded px-2.5 py-1">
+          <Activity className="w-3 h-3 text-ink3" />
+          <span className="text-[11px] text-ink2">Worst latency</span>
           <span
             className={cx(
               'text-[11px] font-semibold',
-              latMs > 200 ? 'text-status-yellow' : 'text-status-green',
+              latMs > 200 ? 'text-status-amber' : 'text-status-green',
             )}
           >
             {latMs}ms
           </span>
         </div>
         {hasIssue && (
-          <div className="flex items-center gap-1.5 bg-status-yellow/10 border border-status-yellow/30 rounded px-2.5 py-1">
-            <AlertTriangle className="w-3 h-3 text-status-yellow" />
-            <span className="text-[11px] text-status-yellow">1 connector degraded — SLA watch</span>
+          <div className="flex items-center gap-1.5 bg-status-amber-soft border border-status-amber-line rounded px-2.5 py-1">
+            <AlertTriangle className="w-3 h-3 text-status-amber" />
+            <span className="text-[11px] text-status-amber">1 connector degraded — SLA watch</span>
           </div>
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -209,52 +187,46 @@ function ConnectorTile({ connector: c }: { connector: ConnectorStatusCard }) {
 
   const slaBarColor =
     c.sla_breach
-      ? 'bg-status-yellow'
+      ? 'bg-status-amber'
       : c.status === 'red'
       ? 'bg-status-red'
       : 'bg-status-green';
 
   const slaTextColor =
-    c.sla_breach ? 'text-status-yellow' : 'text-status-green';
+    c.sla_breach ? 'text-status-amber' : 'text-status-green';
 
   return (
     <div
       className={cx(
-        'rounded-lg border p-3 flex flex-col gap-2 bg-surface-850 transition-colors hover:bg-surface-800',
+        'rounded-lg border p-3 flex flex-col gap-2 bg-panel transition-colors hover:bg-panel2',
         sc.border,
       )}
     >
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <LED status={c.status} size="sm" />
-          <span className="text-[13px] font-semibold text-slate-100 truncate leading-snug">
+          <StatusDot status={c.status} size={8} />
+          <span className="text-[13px] font-semibold text-ink truncate leading-snug">
             {c.connector_label}
           </span>
         </div>
-        <span
-          className={cx(
-            'text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 uppercase tracking-wide',
-            sc.bg,
-            sc.text,
-          )}
-        >
+        <Badge tone="neutral" className={cx(sc.bg, sc.text, sc.border)}>
           {c.status}
-        </span>
+        </Badge>
       </div>
 
       {/* ── System type badge ── */}
-      <p className="text-[10px] uppercase tracking-wider text-slate-500 font-medium -mt-1">
+      <p className="text-[10px] uppercase tracking-wider text-ink3 font-medium -mt-1">
         {c.system_type}
       </p>
 
       {/* ── Key metrics ── */}
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-        <span className="text-slate-500">Last sync</span>
-        <span className="text-slate-300 truncate">{c.last_ingestion_label}</span>
+        <span className="text-ink3">Last sync</span>
+        <span className="text-ink2 truncate">{c.last_ingestion_label}</span>
 
-        <span className="text-slate-500">Records/hr</span>
-        <span className="text-slate-300">
+        <span className="text-ink3">Records/hr</span>
+        <span className="text-ink2">
           {c.records_last_hour != null ? c.records_last_hour.toLocaleString() : '—'}
         </span>
       </div>
@@ -262,10 +234,10 @@ function ConnectorTile({ connector: c }: { connector: ConnectorStatusCard }) {
       {/* ── SLA compliance bar ── */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[10px]">
-          <span className="text-slate-500">SLA compliance</span>
+          <span className="text-ink3">SLA compliance</span>
           <span className={cx('font-semibold', slaTextColor)}>{sla}%</span>
         </div>
-        <div className="h-1.5 rounded-full bg-surface-700 overflow-hidden">
+        <div className="h-1.5 rounded-full bg-panel3 overflow-hidden">
           <div
             className={cx('h-full rounded-full', slaBarColor)}
             style={{ width: `${sla}%` }}
@@ -275,7 +247,7 @@ function ConnectorTile({ connector: c }: { connector: ConnectorStatusCard }) {
 
       {/* ── Latency ── */}
       <div className="flex items-center justify-between text-[11px]">
-        <span className="text-slate-500">Latency</span>
+        <span className="text-ink3">Latency</span>
         <span className={cx('font-semibold', lc.text)}>
           {c.latency_ms != null ? `${c.latency_ms} ms` : '—'}
         </span>
@@ -283,9 +255,9 @@ function ConnectorTile({ connector: c }: { connector: ConnectorStatusCard }) {
 
       {/* ── Degradation warning ── */}
       {c.degradation_reason && (
-        <div className="flex items-start gap-1.5 rounded-md bg-status-yellow/10 border border-status-yellow/25 px-2 py-1.5 mt-0.5">
-          <AlertTriangle className="w-3 h-3 text-status-yellow flex-shrink-0 mt-px" />
-          <span className="text-[10px] text-status-yellow leading-snug">{c.degradation_reason}</span>
+        <div className="flex items-start gap-1.5 rounded-md bg-status-amber-soft border border-status-amber-line px-2 py-1.5 mt-0.5">
+          <AlertTriangle className="w-3 h-3 text-status-amber flex-shrink-0 mt-px" />
+          <span className="text-[10px] text-status-amber leading-snug">{c.degradation_reason}</span>
         </div>
       )}
     </div>
@@ -304,28 +276,29 @@ function ConnectorGrid({ connectors }: { connectors: ConnectorStatusCard[] }) {
   }, [connectors]);
 
   return (
-    <section className="rounded-lg border border-surface-700 bg-surface-900 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">
+    <Panel className="p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-ink3 mb-4">
         Connector Health Grid
       </p>
 
       {connectors.length === 0 ? (
-        <p className="text-sm text-slate-600 italic py-6 text-center">
-          No connectors configured — connect a data source to begin ingestion.
-        </p>
+        <EmptyHint 
+          title="No connectors configured" 
+          detail="Connect a data source to begin ingestion."
+        />
       ) : (
         <div className="space-y-6">
           {groups.map(([groupName, items]) => (
             <div key={groupName}>
               {/* Group header */}
               <div className="flex items-center gap-2 mb-2.5">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-ink2">
                   {groupName}
                 </span>
-                <span className="text-[10px] text-slate-600 bg-surface-800 border border-surface-700 rounded px-1.5 py-0.5">
+                <Badge tone="neutral">
                   {items.length}
-                </span>
-                <div className="flex-1 h-px bg-surface-700 ml-1" />
+                </Badge>
+                <div className="flex-1 h-px bg-line ml-1" />
               </div>
 
               {/* Tile grid */}
@@ -338,7 +311,7 @@ function ConnectorGrid({ connectors }: { connectors: ConnectorStatusCard[] }) {
           ))}
         </div>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -496,13 +469,13 @@ const DEFAULT_EXPANDED = new Set<string>([
 function UNSLeafRow({ leaf }: { leaf: UNSLeafData }) {
   const sc = statusColor(leaf.status);
   return (
-    <div className="flex items-center gap-2 py-0.5 px-2 rounded hover:bg-surface-800/60 group">
-      <LED status={leaf.status} size="xs" />
-      <span className="text-[11px] font-mono text-slate-400">{leaf.label}</span>
+    <div className="flex items-center gap-2 py-0.5 px-2 rounded hover:bg-panel2 group">
+      <StatusDot status={leaf.status} size={6} />
+      <span className="text-[11px] font-mono text-ink2">{leaf.label}</span>
       <span className={cx('text-[11px] font-semibold', sc.text)}>
         {leaf.value}&thinsp;{leaf.unit}
       </span>
-      <span className="text-[10px] text-slate-600 ml-auto">{leaf.freshness}</span>
+      <span className="text-[10px] text-ink3 ml-auto">{leaf.freshness}</span>
     </div>
   );
 }
@@ -535,18 +508,18 @@ function UNSNode({
     <div>
       <button
         onClick={() => toggle(node.path)}
-        className="flex items-center gap-1 w-full text-left py-0.5 px-1.5 rounded hover:bg-surface-800/60 transition-colors"
+        className="flex items-center gap-1 w-full text-left py-0.5 px-1.5 rounded hover:bg-panel2 transition-colors"
         style={{ paddingLeft: indentPx + 4 }}
       >
         {isOpen ? (
-          <ChevronDown className="w-3 h-3 text-slate-500 flex-shrink-0" />
+          <ChevronDown className="w-3 h-3 text-ink3 flex-shrink-0" />
         ) : (
-          <ChevronRight className="w-3 h-3 text-slate-500 flex-shrink-0" />
+          <ChevronRight className="w-3 h-3 text-ink3 flex-shrink-0" />
         )}
-        <span className="text-[11px] font-mono text-slate-300">{node.segment}</span>
-        <span className="text-[10px] text-slate-600 font-mono">/</span>
+        <span className="text-[11px] font-mono text-ink">{node.segment}</span>
+        <span className="text-[10px] text-ink3 font-mono">/</span>
         {childCount > 0 && (
-          <span className="text-[10px] text-slate-600 ml-1">
+          <span className="text-[10px] text-ink3 ml-1">
             ({childCount})
           </span>
         )}
@@ -580,43 +553,37 @@ function UNSTopicExplorer() {
     });
 
   return (
-    <section className="rounded-lg border border-surface-700 bg-surface-900 p-4">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-          UNS Topic Explorer
-        </p>
-        <span className="text-[10px] text-slate-600 font-mono hidden sm:block">
-          areos/{'{tenant}/{site}/{area}/{room}/{asset}/{domain}/{metric}'}
-        </span>
-      </div>
+    <Panel>
+      <PanelHeader 
+        title="UNS Topic Explorer" 
+        subtitle="Unified Namespace — ISA-95 hierarchy · live broker topics"
+        right={
+          <span className="text-[10px] text-ink3 font-mono hidden sm:block">
+            areos/{'{tenant}/{site}/{area}/{room}/{asset}/{domain}/{metric}'}
+          </span>
+        }
+      />
 
-      <p className="text-[10px] text-slate-600 mb-3">
-        Unified Namespace — ISA-95 hierarchy · live broker topics
-      </p>
+      <div className="p-4">
+        <div className="rounded-lg bg-panel3 border border-line2 p-3 overflow-x-auto">
+          <UNSNode
+            node={UNS_TREE}
+            expanded={expanded}
+            toggle={toggle}
+            depth={0}
+          />
+        </div>
 
-      <div className="rounded-lg bg-surface-950 border border-surface-700 p-2 overflow-x-auto">
-        <UNSNode
-          node={UNS_TREE}
-          expanded={expanded}
-          toggle={toggle}
-          depth={0}
-        />
+        {/* Legend */}
+        <div className="mt-3">
+          <Legend items={[
+            { status: 'green', label: 'In spec' },
+            { status: 'yellow', label: 'Near limit' },
+            { status: 'red', label: 'Out of spec' },
+          ]} />
+        </div>
       </div>
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 mt-3 flex-wrap">
-        {(['green', 'yellow', 'red'] as TrafficLight[]).map(s => {
-          const { dot, text } = statusColor(s);
-          const label = s === 'green' ? 'In spec' : s === 'yellow' ? 'Near limit' : 'Out of spec';
-          return (
-            <div key={s} className="flex items-center gap-1.5">
-              <span className={cx('inline-block w-1.5 h-1.5 rounded-full', dot)} />
-              <span className={cx('text-[10px]', text)}>{label}</span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+    </Panel>
   );
 }
 
@@ -627,9 +594,9 @@ function UNSTopicExplorer() {
 export function ConnectorHealthGrid({ connectors }: ConnectorHealthGridProps) {
   return (
     <div className="space-y-4 p-3 overflow-y-auto h-full">
+      <UNSTopicExplorer />
       <IngestionPulse connectors={connectors} />
       <ConnectorGrid connectors={connectors} />
-      <UNSTopicExplorer />
     </div>
   );
 }
