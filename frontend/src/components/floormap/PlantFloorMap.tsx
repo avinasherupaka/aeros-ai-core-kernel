@@ -19,6 +19,7 @@ import {
   Boxes,
   Wrench,
   Layers,
+  Plug,
   X,
   ChevronRight,
 } from 'lucide-react';
@@ -37,18 +38,18 @@ interface LayerConfig {
 }
 
 const LAYER_CONFIGS: LayerConfig[] = [
-  { level: 'L4', label: 'Enterprise / Cloud', yStart: 50, yEnd: 180, bgColor: '#6366f1' },
-  { level: 'L3', label: 'Edge / Site Systems', yStart: 220, yEnd: 350, bgColor: '#8b5cf6' },
-  { level: 'L2', label: 'Supervisory Control', yStart: 390, yEnd: 520, bgColor: '#3b82f6' },
-  { level: 'L1', label: 'Control', yStart: 560, yEnd: 690, bgColor: '#06b6d4' },
-  { level: 'L0', label: 'Field / Sensing', yStart: 730, yEnd: 860, bgColor: '#10b981' },
+  { level: 'L4', label: 'Enterprise / Cloud', yStart: 40, yEnd: 240, bgColor: '#6366f1' },
+  { level: 'L3', label: 'Edge / Site Systems', yStart: 280, yEnd: 480, bgColor: '#8b5cf6' },
+  { level: 'L2', label: 'Supervisory Control', yStart: 520, yEnd: 720, bgColor: '#3b82f6' },
+  { level: 'L1', label: 'Control', yStart: 760, yEnd: 960, bgColor: '#06b6d4' },
+  { level: 'L0', label: 'Field / Sensing', yStart: 1000, yEnd: 1200, bgColor: '#10b981' },
 ];
 
 const SVG_WIDTH = 1600;
-const SVG_HEIGHT = 920;
+const SVG_HEIGHT = 1240;
 const LAYER_PADDING = 40;
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 80;
+const NODE_WIDTH = 168;
+const NODE_HEIGHT = 100;
 const NODE_SPACING = 20;
 
 // ─── Node Icon Mapping ─────────────────────────────────────────────────────────
@@ -483,42 +484,72 @@ export function PlantFloorMap({ sites }: PlantFloorMapProps) {
                   
                   {/* Status LED */}
                   <circle
-                    cx={x + NODE_WIDTH - 12}
-                    cy={y + 12}
+                    cx={x + NODE_WIDTH - 14}
+                    cy={y + 16}
                     r={5}
-                    className={cx(sc.dot, node.status !== 'green' && 'animate-breathe')}
+                    fill={statusHex(node.status)}
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                    className={cx(node.status !== 'green' && 'animate-breathe')}
                   />
                   
                   {/* Icon (using foreignObject for Lucide React component) */}
                   <foreignObject
                     x={x + 12}
                     y={y + 12}
-                    width={32}
-                    height={32}
+                    width={30}
+                    height={30}
                   >
                     <div className="flex items-center justify-center w-full h-full">
                       <Icon size={24} color={iconData.color} strokeWidth={1.5} />
                     </div>
                   </foreignObject>
                   
+                  {/* Aeros connector chip — compact, color-coded by connector status */}
+                  {node.has_connector && (
+                    <foreignObject
+                      x={x + 48}
+                      y={y + 13}
+                      width={NODE_WIDTH - 68}
+                      height={22}
+                    >
+                      <div
+                        className="flex items-center gap-1 rounded-full border px-1.5 h-[22px] w-fit max-w-full"
+                        style={{
+                          backgroundColor: `${sc.hex}14`,
+                          borderColor: `${sc.hex}55`,
+                        }}
+                        title={`Aeros connector · ${sc.label}`}
+                      >
+                        <Plug size={11} color={sc.hex} strokeWidth={2.25} />
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-wide truncate"
+                          style={{ color: sc.hex }}
+                        >
+                          Aeros
+                        </span>
+                      </div>
+                    </foreignObject>
+                  )}
+                  
                   {/* Label */}
                   <text
                     x={x + NODE_WIDTH / 2}
-                    y={y + 54}
+                    y={y + 62}
                     textAnchor="middle"
                     fontSize={12}
                     fontWeight={600}
                     fill="#111827"
                     className="pointer-events-none"
                   >
-                    {node.label.length > 18 ? node.label.slice(0, 16) + '...' : node.label}
+                    {node.label.length > 20 ? node.label.slice(0, 18) + '…' : node.label}
                   </text>
                   
-                  {/* Vendor badge */}
+                  {/* Vendor / protocol footer */}
                   {node.vendor && (
                     <text
                       x={x + NODE_WIDTH / 2}
-                      y={y + 68}
+                      y={y + 80}
                       textAnchor="middle"
                       fontSize={9}
                       fill="#6b7280"
@@ -526,33 +557,6 @@ export function PlantFloorMap({ sites }: PlantFloorMapProps) {
                     >
                       {node.vendor}
                     </text>
-                  )}
-                  
-                  {/* Aeros connector badge */}
-                  {node.has_connector && (
-                    <>
-                      <rect
-                        x={x + 8}
-                        y={y + NODE_HEIGHT - 22}
-                        width={50}
-                        height={16}
-                        rx={3}
-                        fill="#eef2ff"
-                        stroke="#c7d2fe"
-                        strokeWidth={1}
-                      />
-                      <text
-                        x={x + 33}
-                        y={y + NODE_HEIGHT - 11}
-                        textAnchor="middle"
-                        fontSize={9}
-                        fontWeight={700}
-                        fill="#6366f1"
-                        letterSpacing={0.5}
-                      >
-                        AEROS
-                      </text>
-                    </>
                   )}
                 </g>
               );

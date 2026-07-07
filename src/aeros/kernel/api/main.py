@@ -1488,10 +1488,18 @@ def cp_event_detail(event_id: str) -> dict:
 # ---- Config-driven Live Floor Map (ISA-95 L0-L4 topology + live connector status) ----
 import functools
 
+from aeros.kernel.tenancy import active_tenant_id, tenant_config_root
+
 
 def _cp_config_path(filename: str) -> Path:
-    """Resolve a config file from the artifacts root, tolerating read-only mounts."""
+    """Resolve a config file, preferring the active tenant's config directory.
+
+    Resolution order: active tenant config dir (``AREOS_TENANT``) -> artifacts
+    config roots -> repo default. This keeps the core single-site behaviour intact
+    when no tenant is selected while enabling drop-in multi-tenant configuration.
+    """
     roots = [
+        tenant_config_root(),
         os.environ.get("AREOS_CONFIG_DIR"),
         os.path.join(os.environ.get("ARTIFACTS_ROOT", ""), "config") if os.environ.get("ARTIFACTS_ROOT") else None,
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "artifacts", "config"),
@@ -1507,13 +1515,19 @@ def _cp_config_path(filename: str) -> Path:
     return Path("artifacts/config") / filename
 
 
-@functools.lru_cache(maxsize=1)
-def _cp_site_topology_config() -> dict:
+@functools.lru_cache(maxsize=8)
+def _cp_site_topology_config_cached(tenant_key: str) -> dict:
     path = _cp_config_path("site_topology.json")
     if not path.exists():
         return {"sites": []}
     with open(path, "r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _cp_site_topology_config() -> dict:
+    # Key the cache on the active tenant so multiple tenants can be served without
+    # cross-contamination, and so switching AREOS_TENANT is honoured immediately.
+    return _cp_site_topology_config_cached(active_tenant_id() or "__default__")
 
 
 def _cp_connector_health_index() -> dict:

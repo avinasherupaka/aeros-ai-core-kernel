@@ -1,0 +1,315 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Tenant pharma_co_a - ISA-95 topology for the Aeros Live Floor Map.",
+  "sites": [
+    {
+      "site_id": "pca_hyd_01",
+      "site_label": "Aurora Pharma - Hyderabad",
+      "area_label": "OSD Manufacturing",
+      "layers": [
+        {
+          "level": "L0",
+          "label": "Field / Sensing",
+          "description": "Instruments and sensors on equipment (ISA-95 Level 0).",
+          "nodes": [
+            {
+              "id": "rh_sensor_ahu03",
+              "label": "RH Sensor \u00b7 AHU-03",
+              "kind": "sensor",
+              "metric": "relative_humidity",
+              "room": "Compression Room 1"
+            },
+            {
+              "id": "temp_sensor_ahu03",
+              "label": "Temp Sensor \u00b7 AHU-03",
+              "kind": "sensor",
+              "metric": "temperature",
+              "room": "Compression Room 1"
+            },
+            {
+              "id": "dp_sensor_cda",
+              "label": "Dew Point \u00b7 CDA Header",
+              "kind": "sensor",
+              "metric": "dew_point",
+              "room": "Utilities"
+            },
+            {
+              "id": "press_sensor_disp",
+              "label": "\u0394P Sensor \u00b7 Dispensing",
+              "kind": "sensor",
+              "metric": "pressure_delta",
+              "room": "Dispensing"
+            },
+            {
+              "id": "force_sensor_press01",
+              "label": "Force \u00b7 Tablet Press 01",
+              "kind": "sensor",
+              "metric": "compression_force",
+              "room": "Compression Room 1"
+            }
+          ]
+        },
+        {
+          "level": "L1",
+          "label": "Control \u00b7 PLC / OPC-UA",
+          "description": "PLCs and OPC-UA servers performing real-time control (ISA-95 Level 1).",
+          "nodes": [
+            {
+              "id": "plc_ahu03",
+              "label": "PLC \u00b7 AHU-03 (HVAC)",
+              "kind": "plc",
+              "vendor": "Siemens S7"
+            },
+            {
+              "id": "plc_press01",
+              "label": "PLC \u00b7 Tablet Press 01",
+              "kind": "plc",
+              "vendor": "Allen-Bradley"
+            },
+            {
+              "id": "opcua_server",
+              "label": "OPC-UA Server",
+              "kind": "opcua",
+              "vendor": "Kepware",
+              "protocol": "OPC-UA"
+            }
+          ]
+        },
+        {
+          "level": "L2",
+          "label": "Supervisory \u00b7 SCADA / BMS / MES / Historian",
+          "description": "Supervisory control and manufacturing operations systems (ISA-95 Level 2/3).",
+          "nodes": [
+            {
+              "id": "bms",
+              "label": "Building Mgmt System",
+              "kind": "bms",
+              "vendor": "Honeywell EBI"
+            },
+            {
+              "id": "scada",
+              "label": "SCADA",
+              "kind": "scada",
+              "vendor": "Ignition"
+            },
+            {
+              "id": "mes_pharmasuite",
+              "label": "MES \u00b7 PharmaSuite",
+              "kind": "mes",
+              "vendor": "Rockwell PharmaSuite",
+              "connector_id": "mes-pharmasuite"
+            },
+            {
+              "id": "historian_pi",
+              "label": "Historian \u00b7 AVEVA PI",
+              "kind": "historian",
+              "vendor": "AVEVA PI",
+              "connector_id": "historian-aveva-pi"
+            },
+            {
+              "id": "historian_ignition",
+              "label": "Historian \u00b7 Ignition (Live)",
+              "kind": "historian",
+              "vendor": "Ignition",
+              "connector_id": "historian-ignition-live"
+            }
+          ]
+        },
+        {
+          "level": "L3",
+          "label": "Edge / Site \u00b7 Greengrass / UNS / IoT Core",
+          "description": "Edge compute, unified namespace broker, and cloud ingestion gateway.",
+          "nodes": [
+            {
+              "id": "edge_gateway",
+              "label": "Edge Gateway \u00b7 AWS IoT Greengrass",
+              "kind": "edge_gateway",
+              "vendor": "AWS IoT Greengrass"
+            },
+            {
+              "id": "uns_broker",
+              "label": "UNS Broker \u00b7 MQTT Sparkplug",
+              "kind": "mqtt_broker",
+              "vendor": "Mosquitto / Sparkplug B",
+              "protocol": "MQTT"
+            },
+            {
+              "id": "iot_ingest",
+              "label": "Cloud Ingest \u00b7 IoT Core",
+              "kind": "iot_core",
+              "vendor": "AWS IoT Core"
+            }
+          ]
+        },
+        {
+          "level": "L4",
+          "label": "Enterprise / Cloud \u00b7 LIMS / QMS / ERP / Aeros",
+          "description": "Enterprise business systems and the Aeros assurance cloud (ISA-95 Level 4).",
+          "nodes": [
+            {
+              "id": "lims_labware",
+              "label": "LIMS \u00b7 LabWare",
+              "kind": "lims",
+              "vendor": "LabWare",
+              "connector_id": "lims-labware"
+            },
+            {
+              "id": "qms_veeva",
+              "label": "QMS \u00b7 Veeva Vault",
+              "kind": "qms",
+              "vendor": "Veeva Vault",
+              "connector_id": "qms-veeva-vault-live"
+            },
+            {
+              "id": "erp_sap",
+              "label": "ERP \u00b7 SAP",
+              "kind": "erp",
+              "vendor": "SAP",
+              "connector_id": "erp-sap"
+            },
+            {
+              "id": "cmms_maximo",
+              "label": "CMMS \u00b7 Maximo",
+              "kind": "cmms",
+              "vendor": "IBM Maximo",
+              "connector_id": "cmms-maximo"
+            },
+            {
+              "id": "aeros_cloud",
+              "label": "Aeros Assurance Cloud",
+              "kind": "lakehouse",
+              "vendor": "Aeros Lakehouse + Evidence Graph"
+            }
+          ]
+        }
+      ],
+      "flows": [
+        {
+          "from": "rh_sensor_ahu03",
+          "to": "plc_ahu03",
+          "kind": "telemetry"
+        },
+        {
+          "from": "temp_sensor_ahu03",
+          "to": "plc_ahu03",
+          "kind": "telemetry"
+        },
+        {
+          "from": "force_sensor_press01",
+          "to": "plc_press01",
+          "kind": "telemetry"
+        },
+        {
+          "from": "dp_sensor_cda",
+          "to": "opcua_server",
+          "kind": "telemetry"
+        },
+        {
+          "from": "press_sensor_disp",
+          "to": "opcua_server",
+          "kind": "telemetry"
+        },
+        {
+          "from": "plc_ahu03",
+          "to": "opcua_server",
+          "kind": "telemetry"
+        },
+        {
+          "from": "plc_press01",
+          "to": "opcua_server",
+          "kind": "telemetry"
+        },
+        {
+          "from": "plc_ahu03",
+          "to": "bms",
+          "kind": "telemetry"
+        },
+        {
+          "from": "opcua_server",
+          "to": "scada",
+          "kind": "telemetry"
+        },
+        {
+          "from": "scada",
+          "to": "historian_ignition",
+          "kind": "telemetry",
+          "connector_id": "historian-ignition-live"
+        },
+        {
+          "from": "opcua_server",
+          "to": "historian_pi",
+          "kind": "telemetry",
+          "connector_id": "historian-aveva-pi"
+        },
+        {
+          "from": "scada",
+          "to": "mes_pharmasuite",
+          "kind": "context",
+          "connector_id": "mes-pharmasuite"
+        },
+        {
+          "from": "bms",
+          "to": "edge_gateway",
+          "kind": "telemetry"
+        },
+        {
+          "from": "historian_pi",
+          "to": "edge_gateway",
+          "kind": "telemetry",
+          "connector_id": "historian-aveva-pi"
+        },
+        {
+          "from": "historian_ignition",
+          "to": "uns_broker",
+          "kind": "telemetry",
+          "connector_id": "historian-ignition-live"
+        },
+        {
+          "from": "mes_pharmasuite",
+          "to": "uns_broker",
+          "kind": "context",
+          "connector_id": "mes-pharmasuite"
+        },
+        {
+          "from": "edge_gateway",
+          "to": "uns_broker",
+          "kind": "telemetry"
+        },
+        {
+          "from": "uns_broker",
+          "to": "iot_ingest",
+          "kind": "telemetry"
+        },
+        {
+          "from": "iot_ingest",
+          "to": "aeros_cloud",
+          "kind": "telemetry"
+        },
+        {
+          "from": "lims_labware",
+          "to": "aeros_cloud",
+          "kind": "evidence",
+          "connector_id": "lims-labware"
+        },
+        {
+          "from": "qms_veeva",
+          "to": "aeros_cloud",
+          "kind": "evidence",
+          "connector_id": "qms-veeva-vault-live"
+        },
+        {
+          "from": "erp_sap",
+          "to": "aeros_cloud",
+          "kind": "context",
+          "connector_id": "erp-sap"
+        },
+        {
+          "from": "cmms_maximo",
+          "to": "aeros_cloud",
+          "kind": "context",
+          "connector_id": "cmms-maximo"
+        }
+      ]
+    }
+  ]
+}

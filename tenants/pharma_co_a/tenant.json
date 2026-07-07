@@ -1,0 +1,15 @@
+{
+  "tenant_id": "pharma_co_a",
+  "display_name": "Aurora Pharma",
+  "legal_entity": "Aurora Pharmaceuticals Pvt. Ltd.",
+  "region": "ap-south-1",
+  "modality": "oral_solid_dose",
+  "tier": "enterprise",
+  "primary_site_id": "pca_hyd_01",
+  "contact": {
+    "quality_lead": "qa-lead@aurora.example",
+    "site_ops": "plant-ops@aurora.example"
+  },
+  "compliance_scope": ["21_cfr_part_11", "eu_annex_11", "gmp"],
+  "data_residency": "in"
+}

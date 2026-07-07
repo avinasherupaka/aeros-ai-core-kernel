@@ -1,5 +1,4 @@
-import { AlertOctagon, CheckCircle2, CircleDashed, FileText, Lock, Send, Shield } from 'lucide-react';
-import { useState } from 'react';
+import { AlertOctagon, CheckCircle2, CircleDashed, FileText, Lock, Shield } from 'lucide-react';
 import type { CommandCenterEvent } from '../../types/control-plane';
 import { cx, statusColor, titleCase } from '../../lib/design';
 import { Panel, PanelHeader, SectionLabel, ProgressBar, EmptyHint, Badge } from '../ui/primitives';
@@ -9,7 +8,6 @@ import { Sparkline } from '../shared/Sparkline';
 interface CommandCenterProps {
   event: CommandCenterEvent | null;
   loading?: boolean;
-  onAsk?: (question: string) => void;
   onOpenDossier?: (eventId: string) => void;
 }
 
@@ -26,9 +24,7 @@ const actionIcon = (status: string) => {
   return <CircleDashed size={15} className="text-status-amber" />;
 };
 
-export function CommandCenter({ event, loading, onAsk, onOpenDossier }: CommandCenterProps) {
-  const [question, setQuestion] = useState('');
-
+export function CommandCenter({ event, loading, onOpenDossier }: CommandCenterProps) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-8">
@@ -36,7 +32,7 @@ export function CommandCenter({ event, loading, onAsk, onOpenDossier }: CommandC
       </div>
     );
   }
-  
+
   if (!event) {
     return (
       <EmptyHint
@@ -50,18 +46,12 @@ export function CommandCenter({ event, loading, onAsk, onOpenDossier }: CommandC
   const { summary, context, impact, series, series_meta, evidence_graph, dossier, required_actions } = event;
   const sc = statusColor(summary.status);
 
-  const suggestedQueries = [
-    `What is the quality risk for this ${summary.parameter.toLowerCase()} excursion?`,
-    'What is blocking batch release?',
-    'Show the evidence checklist',
-  ];
-
   // Compute present evidence (required but not missing)
   const presentEvidence = dossier.required_evidence.filter((item) => !dossier.missing_evidence.includes(item));
 
   return (
-    <div className="grid h-full grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-[minmax(0,28%)_minmax(0,44%)_minmax(0,28%)]">
-      {/* LEFT COLUMN — Event Context & Impact */}
+    <div className="grid h-full grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-[minmax(0,30%)_minmax(0,70%)]">
+      {/* LEFT COLUMN — Event Context, Impact & Control Chart */}
       <div className="flex flex-col gap-3 overflow-y-auto">
         {/* Event Header */}
         <Panel>
@@ -139,125 +129,86 @@ export function CommandCenter({ event, loading, onAsk, onOpenDossier }: CommandC
         </Panel>
       </div>
 
-      {/* CENTER COLUMN — Evidence Graph */}
-      <div className="min-h-[500px] overflow-hidden">
-        <EvidenceGraphView graph={evidence_graph} />
-      </div>
-
-      {/* RIGHT COLUMN — Actions & Dossier */}
-      <div className="flex flex-col gap-3 overflow-y-auto">
-        {/* Required Actions */}
-        <Panel>
-          <PanelHeader title="Required Actions" />
-          <div className="px-4 pb-4 pt-2">
-            <ul className="space-y-2">
-              {required_actions.map((action, index) => (
-                <li key={index} className="flex items-start gap-2 text-xs text-ink2">
-                  <span className="mt-0.5">{actionIcon(action.status)}</span>
-                  <span className={cx(action.status === 'blocked' && 'text-status-red')}>{action.label}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Panel>
-
-        {/* GMP Dossier Readiness */}
-        <Panel>
-          <PanelHeader
-            title="GMP Dossier Readiness"
-            subtitle="Evidence assembled for release decision — not batch or process progress"
-            right={<Badge tone="neutral">{Math.round(dossier.completeness_pct)}%</Badge>}
-          />
-          <div className="px-4 pb-4 pt-2">
-            <ProgressBar pct={dossier.completeness_pct} className="mb-3" />
-            
-            {presentEvidence.length > 0 && (
-              <div className="mb-3">
-                <SectionLabel className="mb-1.5">Present Evidence</SectionLabel>
-                <ul className="space-y-1 text-xs">
-                  {presentEvidence.slice(0, 5).map((item, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-status-green">
-                      <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                  {presentEvidence.length > 5 && (
-                    <li className="text-ink3">+ {presentEvidence.length - 5} more…</li>
-                  )}
-                </ul>
-              </div>
-            )}
-
-            {dossier.missing_evidence.length > 0 && (
-              <div className="mb-3">
-                <SectionLabel className="mb-1.5">Missing Evidence</SectionLabel>
-                <ul className="space-y-1 text-xs">
-                  {dossier.missing_evidence.slice(0, 5).map((item, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-status-amber">
-                      <CircleDashed size={14} className="mt-0.5 shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                  {dossier.missing_evidence.length > 5 && (
-                    <li className="text-ink3">+ {dossier.missing_evidence.length - 5} more…</li>
-                  )}
-                </ul>
-              </div>
-            )}
-
-            <button
-              onClick={() => onOpenDossier?.(summary.event_id)}
-              className="flex w-full items-center justify-center gap-2 rounded border border-brand-ring bg-brand-soft px-3 py-2 text-xs font-medium text-brand hover:bg-brand-hover"
-            >
-              <FileText size={14} />
-              View Full Dossier
-            </button>
-          </div>
-        </Panel>
-
-        {/* Ask Dendrix */}
-        <Panel className="flex flex-1 flex-col">
-          <PanelHeader title="Ask Dendrix" subtitle="MCP AI Assistant" />
-          <div className="flex flex-1 flex-col px-4 pb-4 pt-2">
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {suggestedQueries.map((query) => (
-                <button
-                  key={query}
-                  onClick={() => onAsk?.(query)}
-                  className="rounded-full border border-line2 bg-panel2 px-2.5 py-1 text-[11px] text-ink2 hover:border-brand-ring hover:bg-brand-soft hover:text-brand"
-                >
-                  {query}
-                </button>
-              ))}
+      {/* RIGHT COLUMN — Actions + Dossier strip above the landscape Evidence Graph */}
+      <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        {/* Top strip: Required Actions + GMP Dossier Readiness side by side */}
+        <div className="grid shrink-0 grid-cols-1 gap-3 xl:grid-cols-2">
+          {/* Required Actions */}
+          <Panel>
+            <PanelHeader title="Required Actions" />
+            <div className="px-4 pb-4 pt-2">
+              <ul className="space-y-2">
+                {required_actions.map((action, index) => (
+                  <li key={index} className="flex items-start gap-2 text-xs text-ink2">
+                    <span className="mt-0.5">{actionIcon(action.status)}</span>
+                    <span className={cx(action.status === 'blocked' && 'text-status-red')}>{action.label}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="mt-auto flex gap-2">
-              <input
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && question.trim()) {
-                    onAsk?.(question.trim());
-                    setQuestion('');
-                  }
-                }}
-                placeholder="Ask about this event…"
-                className="flex-1 rounded border border-line2 bg-panel3 px-3 py-2 text-xs text-ink placeholder:text-ink3 focus:border-brand-ring focus:outline-none"
-              />
+          </Panel>
+
+          {/* GMP Dossier Readiness */}
+          <Panel>
+            <PanelHeader
+              title="GMP Dossier Readiness"
+              subtitle="Evidence assembled for release — not batch/process progress"
+              right={<Badge tone="neutral">{Math.round(dossier.completeness_pct)}%</Badge>}
+            />
+            <div className="px-4 pb-4 pt-2">
+              <ProgressBar pct={dossier.completeness_pct} className="mb-3" />
+
+              <div className="grid grid-cols-2 gap-3">
+                {presentEvidence.length > 0 && (
+                  <div>
+                    <SectionLabel className="mb-1.5">Present</SectionLabel>
+                    <ul className="space-y-1 text-xs">
+                      {presentEvidence.slice(0, 4).map((item, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-status-green">
+                          <CheckCircle2 size={13} className="mt-0.5 shrink-0" />
+                          <span className="truncate" title={item}>{item}</span>
+                        </li>
+                      ))}
+                      {presentEvidence.length > 4 && (
+                        <li className="text-ink3">+ {presentEvidence.length - 4} more…</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {dossier.missing_evidence.length > 0 && (
+                  <div>
+                    <SectionLabel className="mb-1.5">Missing</SectionLabel>
+                    <ul className="space-y-1 text-xs">
+                      {dossier.missing_evidence.slice(0, 4).map((item, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-status-amber">
+                          <CircleDashed size={13} className="mt-0.5 shrink-0" />
+                          <span className="truncate" title={item}>{item}</span>
+                        </li>
+                      ))}
+                      {dossier.missing_evidence.length > 4 && (
+                        <li className="text-ink3">+ {dossier.missing_evidence.length - 4} more…</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
               <button
-                onClick={() => {
-                  if (question.trim()) {
-                    onAsk?.(question.trim());
-                    setQuestion('');
-                  }
-                }}
-                className="rounded bg-brand-soft px-3 text-brand hover:bg-brand-hover disabled:opacity-50"
-                disabled={!question.trim()}
+                onClick={() => onOpenDossier?.(summary.event_id)}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded border border-brand-ring bg-brand-soft px-3 py-2 text-xs font-medium text-brand hover:bg-brand-hover"
               >
-                <Send size={14} />
+                <FileText size={14} />
+                View Full Dossier
               </button>
             </div>
-          </div>
-        </Panel>
+          </Panel>
+        </div>
+
+        {/* Landscape Evidence Graph — fills remaining height */}
+        <div className="min-h-0 flex-1">
+          <EvidenceGraphView graph={evidence_graph} />
+        </div>
       </div>
     </div>
   );

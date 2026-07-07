@@ -531,7 +531,6 @@ export default function App() {
                 <CommandCenter
                   event={activeEvent}
                   loading={eventLoading}
-                  onAsk={askAssistant}
                   onOpenDossier={openDossierForEvent}
                 />
               )}
