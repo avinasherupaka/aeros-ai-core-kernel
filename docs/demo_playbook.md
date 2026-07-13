@@ -488,7 +488,7 @@ this?"**
 - [ ] Evidence Graph **Expand** modal opens, zooms, and pans smoothly.
 - [ ] "View Full Dossier" navigates to a populated dossier.
 - [ ] Dendrix assistant responds on at least two screens.
-- [ ] If demoing multi-tenancy: both `pharma_co_a` and `pharma_co_b` stacks up;
+- [ ] If demoing multi-tenancy: both `acme_pharma` and `nova_bio` stacks up;
       Floor Map shows the correct site label per tenant.
 - [ ] Know the customer's deviation volume and batch value for the ROI moment.
 

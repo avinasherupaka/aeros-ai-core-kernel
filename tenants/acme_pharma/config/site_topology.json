@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Acme Pharma multi-site parity topology. Demo statuses are only applied when AREOS_DEMO_HEALTH=1.",
+  "sites": [
+    {
+      "site_id": "acme_hyd_01",
+      "site_label": "Hyderabad Plant",
+      "area_label": "OSD Manufacturing",
+      "demo_status": "green",
+      "layers": [
+        {"level":"L0","label":"Field / Sensing","description":"Validated plant instruments.","nodes":[{"id":"hyd_sensor","label":"RH Sensor - AHU-03","kind":"sensor","metric":"relative_humidity","room":"Compression Room 1"}]},
+        {"level":"L1","label":"Control / PLC / OPC-UA","description":"Real-time control layer.","nodes":[{"id":"hyd_plc","label":"PLC - AHU-03","kind":"plc","vendor":"Siemens S7"}]},
+        {"level":"L2","label":"Supervisory / MES / Historian","description":"Site operations systems.","nodes":[{"id":"hyd_mes","label":"MES - PharmaSuite","kind":"mes","vendor":"Rockwell PharmaSuite"}]},
+        {"level":"L3","label":"Edge / UNS / IoT","description":"Site edge and ingestion.","nodes":[{"id":"hyd_edge","label":"Edge Gateway - Greengrass","kind":"edge_gateway","vendor":"AWS IoT Greengrass"}]},
+        {"level":"L4","label":"Enterprise / Aeros","description":"Assurance and enterprise systems.","nodes":[{"id":"hyd_aeros","label":"Aeros Assurance Cloud","kind":"lakehouse","vendor":"Aeros"}]}
+      ],
+      "flows": [
+        {"from":"hyd_sensor","to":"hyd_plc","kind":"telemetry"},
+        {"from":"hyd_plc","to":"hyd_mes","kind":"context"},
+        {"from":"hyd_mes","to":"hyd_edge","kind":"telemetry"},
+        {"from":"hyd_edge","to":"hyd_aeros","kind":"evidence"}
+      ]
+    },
+    {
+      "site_id": "acme_pun_02",
+      "site_label": "Pune Plant",
+      "area_label": "Packaging",
+      "demo_status": "yellow",
+      "layers": [
+        {"level":"L0","label":"Field / Sensing","description":"Validated plant instruments.","nodes":[{"id":"pun_sensor","label":"Temperature Sensor - PKG-02","kind":"sensor","metric":"temperature","room":"Packaging Hall"}]},
+        {"level":"L1","label":"Control / PLC / OPC-UA","description":"Real-time control layer.","nodes":[{"id":"pun_plc","label":"PLC - Packaging Line 2","kind":"plc","vendor":"Allen-Bradley"}]},
+        {"level":"L2","label":"Supervisory / MES / Historian","description":"Site operations systems.","nodes":[{"id":"pun_mes","label":"MES - PharmaSuite","kind":"mes","vendor":"Rockwell PharmaSuite"}]},
+        {"level":"L3","label":"Edge / UNS / IoT","description":"Site edge and ingestion.","nodes":[{"id":"pun_edge","label":"UNS Broker - MQTT","kind":"mqtt_broker","vendor":"Mosquitto"}]},
+        {"level":"L4","label":"Enterprise / Aeros","description":"Assurance and enterprise systems.","nodes":[{"id":"pun_aeros","label":"Aeros Assurance Cloud","kind":"lakehouse","vendor":"Aeros"}]}
+      ],
+      "flows": [
+        {"from":"pun_sensor","to":"pun_plc","kind":"telemetry"},
+        {"from":"pun_plc","to":"pun_mes","kind":"context"},
+        {"from":"pun_mes","to":"pun_edge","kind":"telemetry"},
+        {"from":"pun_edge","to":"pun_aeros","kind":"evidence"}
+      ]
+    }
+  ]
+}

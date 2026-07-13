@@ -1,0 +1,10 @@
+{
+  "environment": "dev",
+  "mode": "digital_twin",
+  "source": "scripts/simulate_digital_twin.py",
+  "interval_seconds": 2,
+  "tenants": ["acme_pharma", "nova_bio"],
+  "publish_url_env": "AREOS_SIMULATOR_TARGET_URL",
+  "allow_network_publish": true,
+  "notes": "Near-real-time synthetic telemetry for pipeline and connector integration tests."
+}

@@ -1581,12 +1581,22 @@ def cp_floormap(site_id: str | None = None) -> dict:
             continue
         layers_out = []
         node_status: dict[str, str] = {}
+        demo_health_enabled = os.environ.get("AREOS_DEMO_HEALTH") == "1"
+        site_demo_status = site.get("demo_status") if demo_health_enabled else None
         for layer in site.get("layers", []):
             nodes_out = []
             for node in layer.get("nodes", []):
                 cid = node.get("connector_id")
                 health_entry = health.get(cid) if cid else None
-                status = health_entry["status"] if health_entry else "green"
+                status = (
+                    node.get("demo_status")
+                    if demo_health_enabled and node.get("demo_status")
+                    else site_demo_status
+                    if site_demo_status
+                    else health_entry["status"]
+                    if health_entry
+                    else "green"
+                )
                 node_status[node["id"]] = status
                 nodes_out.append(
                     {
@@ -1614,7 +1624,11 @@ def cp_floormap(site_id: str | None = None) -> dict:
         flows_out = []
         for flow in site.get("flows", []):
             cid = flow.get("connector_id")
-            if cid and cid in health:
+            if demo_health_enabled and flow.get("demo_status"):
+                status = flow["demo_status"]
+            elif site_demo_status:
+                status = site_demo_status
+            elif cid and cid in health:
                 status = health[cid]["status"]
             else:
                 # derive from endpoints - worst of the two node statuses

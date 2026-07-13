@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "environment" {
+  description = "Deployment stage used for tags and control-plane policy."
+  type        = string
+  default     = "dev"
+}
+
 variable "container_image" {
   description = "ECR image URI for the Aeros core API (identical across tenants)."
   type        = string

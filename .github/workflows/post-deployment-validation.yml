@@ -1,0 +1,47 @@
+name: post-deployment-validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployed environment to validate
+        required: true
+        type: choice
+        options: [dev, qa, prod]
+      deployment_targets:
+        description: JSON object mapping tenant IDs to deployed API URLs
+        required: true
+        type: string
+  workflow_run:
+    workflows: ["deploy-dev"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Validate parity and tenant configuration
+        run: PYTHONPATH=src python scripts/validate_environment_configs.py
+
+      - name: Validate deployed tenant APIs
+        env:
+          AREOS_DEPLOYMENT_TARGETS: ${{ github.event_name == 'workflow_dispatch' && inputs.deployment_targets || vars.AREOS_DEPLOYMENT_TARGETS_DEV }}
+        run: |
+          PYTHONPATH=src python scripts/validate_deployment.py \
+            --environment "${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}"

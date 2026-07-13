@@ -5,12 +5,10 @@
 # Each tenant gets its own network + Postgres + API + UI, selected purely by the
 # AREOS_TENANT env var. The core image is identical across tenants (config-driven).
 #
-#   Tenant A (Aurora Pharma)  -> API :8010  UI :3010
-#   Tenant B (Nexus Bio)      -> API :8020  UI :3020
+#   Acme Pharma (two sites)   -> API :8030  UI :3030
+#   Nova Bio (one site)       -> API :8040  UI :3040
 #
 # Paths are relative to the repo root (../../).
-
-version: "3.9"
 
 x-areos-python-build: &areos-python-build
   context: ../../
@@ -23,129 +21,89 @@ x-areos-python-build: &areos-python-build
     RUN pip install --no-cache-dir .
 
 services:
-  # ─────────────────────────── Tenant A: pharma_co_a ───────────────────────────
-  api-a:
+  # ─────────────────────── Parity tenant: acme_pharma ─────────────────────────
+  # Two sites (green + yellow) are returned by /cp/floormap.
+  api-acme:
     build: *areos-python-build
     working_dir: /app
     command: uvicorn aeros.kernel.api.main:app --host 0.0.0.0 --port 8000
     environment:
       AREOS_MODE: local_mock
-      AREOS_TENANT: pharma_co_a
+      AREOS_TENANT: acme_pharma
       AREOS_TENANTS_DIR: /tenants
+      AREOS_DEMO_HEALTH: "1"
       ARTIFACTS_ROOT: /data/artifacts
-      DATABASE_URL: postgresql://areos:areos_local_dev@postgres-a:5432/areos_cp
     ports:
-      - "8010:8000"
+      - "8030:8000"
     volumes:
       - ../../src:/app/src:ro
       - ../../artifacts:/data/artifacts:ro
       - ../../tenants:/tenants:ro
-      - tenant_a_cache:/data/cache
-    depends_on:
-      postgres-a:
-        condition: service_healthy
+      - tenant_acme_cache:/data/cache
     networks:
-      - tenant-a-net
+      - tenant-acme-net
 
-  ui-a:
+  ui-acme:
     build:
       context: ../../frontend
       dockerfile: Dockerfile
     working_dir: /app
     command: npm run dev -- --host 0.0.0.0 --port 3000
     environment:
-      VITE_API_BASE_URL: http://api-a:8000
+      VITE_API_BASE_URL: http://api-acme:8000
     ports:
-      - "3010:3000"
+      - "3030:3000"
     depends_on:
-      api-a:
+      api-acme:
         condition: service_started
     networks:
-      - tenant-a-net
+      - tenant-acme-net
 
-  postgres-a:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: areos
-      POSTGRES_PASSWORD: areos_local_dev
-      POSTGRES_DB: areos_cp
-    volumes:
-      - tenant_a_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U areos -d areos_cp"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - tenant-a-net
-
-  # ─────────────────────────── Tenant B: pharma_co_b ───────────────────────────
-  api-b:
+  # ─────────────────────────── Parity tenant: nova_bio ───────────────────────
+  # One red site is returned by /cp/floormap for active-alert rendering.
+  api-nova:
     build: *areos-python-build
     working_dir: /app
     command: uvicorn aeros.kernel.api.main:app --host 0.0.0.0 --port 8000
     environment:
       AREOS_MODE: local_mock
-      AREOS_TENANT: pharma_co_b
+      AREOS_TENANT: nova_bio
       AREOS_TENANTS_DIR: /tenants
+      AREOS_DEMO_HEALTH: "1"
       ARTIFACTS_ROOT: /data/artifacts
-      DATABASE_URL: postgresql://areos:areos_local_dev@postgres-b:5432/areos_cp
     ports:
-      - "8020:8000"
+      - "8040:8000"
     volumes:
       - ../../src:/app/src:ro
       - ../../artifacts:/data/artifacts:ro
       - ../../tenants:/tenants:ro
-      - tenant_b_cache:/data/cache
-    depends_on:
-      postgres-b:
-        condition: service_healthy
+      - tenant_nova_cache:/data/cache
     networks:
-      - tenant-b-net
+      - tenant-nova-net
 
-  ui-b:
+  ui-nova:
     build:
       context: ../../frontend
       dockerfile: Dockerfile
     working_dir: /app
     command: npm run dev -- --host 0.0.0.0 --port 3000
     environment:
-      VITE_API_BASE_URL: http://api-b:8000
+      VITE_API_BASE_URL: http://api-nova:8000
     ports:
-      - "3020:3000"
+      - "3040:3000"
     depends_on:
-      api-b:
+      api-nova:
         condition: service_started
     networks:
-      - tenant-b-net
-
-  postgres-b:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: areos
-      POSTGRES_PASSWORD: areos_local_dev
-      POSTGRES_DB: areos_cp
-    volumes:
-      - tenant_b_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U areos -d areos_cp"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - tenant-b-net
+      - tenant-nova-net
 
 # Strict network segregation — tenants share no L2 network (mirrors VPC-per-tenant in AWS).
 networks:
-  tenant-a-net:
+  tenant-acme-net:
     driver: bridge
-  tenant-b-net:
+  tenant-nova-net:
     driver: bridge
 
 volumes:
-  tenant_a_pgdata:
-  tenant_a_cache:
-  tenant_b_pgdata:
-  tenant_b_cache:
+  tenant_acme_cache:
+  tenant_nova_cache:

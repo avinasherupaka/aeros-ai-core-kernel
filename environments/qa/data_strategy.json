@@ -1,0 +1,10 @@
+{
+  "environment": "qa",
+  "mode": "digital_twin",
+  "source": "scripts/simulate_digital_twin.py",
+  "interval_seconds": 1,
+  "tenants": ["acme_pharma", "nova_bio"],
+  "publish_url_env": "AREOS_SIMULATOR_TARGET_URL",
+  "allow_network_publish": true,
+  "notes": "Repeatable seeded telemetry and failure injection for release-candidate validation."
+}

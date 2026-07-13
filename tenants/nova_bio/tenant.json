@@ -1,0 +1,11 @@
+{
+  "tenant_id": "nova_bio",
+  "display_name": "Nova Bio",
+  "legal_entity": "Nova Biologics Ltd.",
+  "region": "us-east-1",
+  "modality": "biologics",
+  "tier": "enterprise",
+  "primary_site_id": "nova_bos_01",
+  "compliance_scope": ["21_cfr_part_11", "gmp", "data_integrity_alcoa"],
+  "data_residency": "us"
+}

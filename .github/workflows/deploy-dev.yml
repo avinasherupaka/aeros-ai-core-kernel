@@ -27,7 +27,7 @@ jobs:
           terraform_version: 1.8.5
 
       - name: Terraform apply (manual workflow only)
-        working-directory: infra/terraform/envs/${{ env.TF_ENV }}
+        working-directory: environments/${{ env.TF_ENV }}
         run: |
           terraform init
           terraform plan -out=tfplan

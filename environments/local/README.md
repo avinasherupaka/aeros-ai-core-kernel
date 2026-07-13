@@ -12,12 +12,13 @@ docker compose -f environments/local/docker-compose.multi.yml up --build
 
 | Tenant                    | API              | UI                | Network        |
 |---------------------------|------------------|-------------------|----------------|
-| `pharma_co_a` (Aurora)    | http://localhost:8010 | http://localhost:3010 | `tenant-a-net` |
-| `pharma_co_b` (Nexus Bio) | http://localhost:8020 | http://localhost:3020 | `tenant-b-net` |
+| `acme_pharma` (Hyderabad + Pune) | http://localhost:8030 | http://localhost:3030 | `tenant-acme-net` |
+| `nova_bio` (Boston) | http://localhost:8040 | http://localhost:3040 | `tenant-nova-net` |
 
-Each tenant runs on its **own bridge network** with its **own Postgres and cache
-volume** — no shared L2 network. This mirrors the VPC-per-tenant isolation used in
-`environments/dev` (AWS).
+Each tenant runs on its **own bridge network** with its **own writable cache
+volume** — no shared L2 network. This mirrors the VPC-per-tenant isolation used
+in `environments/dev` (AWS). Add a tenant-local Postgres service only when the
+selected deployment profile enables database-backed workflow state.
 
 ## How tenant selection works
 
@@ -29,21 +30,21 @@ built-in single-site config under `artifacts/config/`.
 Verify a running tenant:
 
 ```bash
-curl -s localhost:8010/cp/floormap | jq '.sites[0].site_label'   # "Aurora Pharma - Hyderabad"
-curl -s localhost:8020/cp/floormap | jq '.sites[0].site_label'   # "Nexus Bio - Boston"
+curl -s localhost:8030/cp/floormap | jq '.sites[].site_label'  # Hyderabad Plant, Pune Plant
+curl -s localhost:8040/cp/floormap | jq '.sites[].site_label'  # Boston Biologics Campus
 ```
 
 ## Validate a tenant before starting it
 
 ```bash
-AREOS_TENANT=pharma_co_a PYTHONPATH=src pytest tenants/pharma_co_a/tests -q
-AREOS_TENANT=pharma_co_b PYTHONPATH=src pytest tenants/pharma_co_b/tests -q
+AREOS_TENANT=acme_pharma PYTHONPATH=src pytest tenants/acme_pharma/tests -q
+AREOS_TENANT=nova_bio PYTHONPATH=src pytest tenants/nova_bio/tests -q
 ```
 
 ## Add a third facility (plug & play)
 
-1. `cp -r tenants/pharma_co_a tenants/pharma_co_c` and edit the config blocks.
-2. Copy `.env.pharma_co_a` → `.env.pharma_co_c` and update `AREOS_TENANT`.
-3. Duplicate the `api-*` / `ui-*` / `postgres-*` service block in
+1. `cp -r tenants/acme_pharma tenants/<new_tenant_id>` and edit the config blocks.
+2. Add a tenant entry to the Local parity manifest and update `AREOS_TENANT`.
+3. Duplicate the `api-*` / `ui-*` service block in
    `docker-compose.multi.yml`, add a `tenant-c-net`, and pick fresh host ports.
-4. `pytest tenants/pharma_co_c/tests -q`, then `docker compose ... up`.
+4. `pytest tenants/<new_tenant_id>/tests -q`, then `docker compose ... up`.

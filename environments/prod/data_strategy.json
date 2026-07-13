@@ -1,0 +1,10 @@
+{
+  "environment": "prod",
+  "mode": "live_system_only",
+  "source": "approved tenant connector registry",
+  "interval_seconds": null,
+  "tenants": ["acme_pharma", "nova_bio"],
+  "allow_network_publish": false,
+  "required_controls": ["approved_connector", "secrets_manager_reference", "change_ticket", "validation_protocol"],
+  "notes": "The synthetic simulator is blocked in prod. Live digital twins and plant systems are configured per customer tenant."
+}

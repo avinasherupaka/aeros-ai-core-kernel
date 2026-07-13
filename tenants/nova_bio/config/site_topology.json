@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Nova Bio multi-company parity topology. Demo statuses are only applied when AREOS_DEMO_HEALTH=1.",
+  "sites": [
+    {
+      "site_id": "nova_bos_01",
+      "site_label": "Boston Biologics Campus",
+      "area_label": "Drug Substance",
+      "demo_status": "red",
+      "layers": [
+        {"level":"L0","label":"Field / Sensing","description":"Bioreactor and utility instruments.","nodes":[{"id":"bos_sensor","label":"DO Sensor - BR-2000","kind":"sensor","metric":"dissolved_oxygen","room":"Bioreactor Suite A"}]},
+        {"level":"L1","label":"Control / PLC / OPC-UA","description":"Distributed control layer.","nodes":[{"id":"bos_plc","label":"DCS - BR-2000","kind":"plc","vendor":"Emerson DeltaV"}]},
+        {"level":"L2","label":"Supervisory / MES / Historian","description":"Site operations systems.","nodes":[{"id":"bos_mes","label":"MES - Syncade","kind":"mes","vendor":"Emerson Syncade"}]},
+        {"level":"L3","label":"Edge / UNS / IoT","description":"Site edge and ingestion.","nodes":[{"id":"bos_edge","label":"Edge Gateway - Greengrass","kind":"edge_gateway","vendor":"AWS IoT Greengrass"}]},
+        {"level":"L4","label":"Enterprise / Aeros","description":"Assurance and enterprise systems.","nodes":[{"id":"bos_aeros","label":"Aeros Assurance Cloud","kind":"lakehouse","vendor":"Aeros"}]}
+      ],
+      "flows": [
+        {"from":"bos_sensor","to":"bos_plc","kind":"telemetry"},
+        {"from":"bos_plc","to":"bos_mes","kind":"context"},
+        {"from":"bos_mes","to":"bos_edge","kind":"telemetry"},
+        {"from":"bos_edge","to":"bos_aeros","kind":"evidence"}
+      ]
+    }
+  ]
+}

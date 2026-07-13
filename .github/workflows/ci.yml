@@ -26,6 +26,9 @@ jobs:
       - name: Run Python tests
         run: ./scripts/run_tests.sh
 
+      - name: Validate environment parity and tenant configs
+        run: PYTHONPATH=src python scripts/validate_environment_configs.py
+
   terraform-validate:
     runs-on: ubuntu-latest
     steps:

@@ -3,7 +3,7 @@
 The Aeros core stays entirely tenant- and environment-agnostic. Which facility a
 running process serves is selected purely by environment variables at boot:
 
-    AREOS_TENANT       Tenant/site identifier (e.g. "pharma_co_a"). If unset, the
+    AREOS_TENANT       Tenant/site identifier (e.g. "acme_pharma"). If unset, the
                        core falls back to the built-in single-site configuration
                        under ``artifacts/config`` so existing behaviour is
                        preserved with zero configuration.
@@ -24,6 +24,7 @@ from .loader import (
     list_tenants,
 )
 from .validation import validate_tenant
+from .parity import load_parity_manifest, validate_parity_manifest
 
 __all__ = [
     "active_tenant_id",
@@ -32,4 +33,6 @@ __all__ = [
     "resolve_tenant_config",
     "list_tenants",
     "validate_tenant",
+    "load_parity_manifest",
+    "validate_parity_manifest",
 ]

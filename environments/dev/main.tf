@@ -31,7 +31,7 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = "aeros-control-plane"
-      Environment = "dev"
+      Environment = var.environment
       ManagedBy   = "terraform"
     }
   }

@@ -1,0 +1,11 @@
+{
+  "tenant_id": "acme_pharma",
+  "display_name": "Acme Pharma",
+  "legal_entity": "Acme Pharmaceuticals Inc.",
+  "region": "ap-south-1",
+  "modality": "oral_solid_dose",
+  "tier": "enterprise",
+  "primary_site_id": "acme_hyd_01",
+  "compliance_scope": ["21_cfr_part_11", "eu_annex_11", "gmp"],
+  "data_residency": "in"
+}

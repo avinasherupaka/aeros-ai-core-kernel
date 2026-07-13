@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and set an approved immutable image before applying.
+container_image = "000000000000.dkr.ecr.us-east-1.amazonaws.com/aeros-core@sha256:RELEASE_DIGEST"
+
+tenants = {
+  acme_pharma = {
+    vpc_cidr           = "10.50.0.0/16"
+    desired_task_count = 2
+  }
+  nova_bio = {
+    vpc_cidr           = "10.60.0.0/16"
+    desired_task_count = 2
+  }
+}

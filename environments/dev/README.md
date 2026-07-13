@@ -18,10 +18,10 @@ environments/dev/
 ```
         ┌──────────────────────── AWS Dev Account ────────────────────────┐
         │                                                                  │
-        │   VPC 10.10.0.0/16 (pharma_co_a)     VPC 10.20.0.0/16 (pharma_co_b)
+        │   VPC 10.10.0.0/16 (acme_pharma)     VPC 10.20.0.0/16 (nova_bio)
         │   ├─ private subnets  ├─ ECS/Fargate  ├─ private subnets  ├─ ECS │
-        │   ├─ Secrets: aurora/* │   AREOS_TENANT ├─ Secrets: nexus/* │     │
-        │   └─ ALB (aurora.dev)  │   =pharma_co_a └─ ALB (nexus.dev)  │     │
+        │   ├─ Secrets: acme/*   │   AREOS_TENANT ├─ Secrets: nova/* │      │
+        │   └─ ALB (acme.dev)    │   =acme_pharma └─ ALB (nova.dev)  │      │
         │                                                                  │
         │   No peering. No shared subnets. No shared secret scope.         │
         └──────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,10 @@
+{
+  "environment": "local",
+  "mode": "deterministic_simulation",
+  "source": "scripts/simulate_digital_twin.py",
+  "interval_seconds": 2,
+  "tenants": ["acme_pharma", "nova_bio"],
+  "health_states": {"acme_hyd_01":"green","acme_pun_02":"yellow","nova_bos_01":"red"},
+  "allow_network_publish": false,
+  "notes": "Synthetic values are clearly labeled and must never be used for GMP decisions."
+}

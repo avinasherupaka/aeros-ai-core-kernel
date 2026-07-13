@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "environment": "prod",
+  "purpose": "Validated live-system rollout; no synthetic data",
+  "demo_health_enabled": false,
+  "companies": [
+    {
+      "company_id": "acme_pharma",
+      "tenant_id": "acme_pharma",
+      "sites": [
+        {"site_id":"acme_hyd_01","site_label":"Hyderabad Plant","health_state":"green","live_system_profile":"acme-hyd-prod"},
+        {"site_id":"acme_pun_02","site_label":"Pune Plant","health_state":"yellow","live_system_profile":"acme-pun-prod"}
+      ]
+    },
+    {
+      "company_id": "nova_bio",
+      "tenant_id": "nova_bio",
+      "sites": [
+        {"site_id":"nova_bos_01","site_label":"Boston Biologics Campus","health_state":"red","live_system_profile":"nova-bos-prod"}
+      ]
+    }
+  ]
+}

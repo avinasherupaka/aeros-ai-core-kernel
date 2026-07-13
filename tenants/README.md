@@ -8,7 +8,7 @@ are required to onboard a new facility — you add data, not logic.
 ## Selecting a tenant
 
 ```bash
-export AREOS_TENANT=pharma_co_a        # which facility this process serves
+export AREOS_TENANT=acme_pharma        # which facility this process serves
 export AREOS_TENANTS_DIR=tenants       # optional; defaults to ./tenants (or /tenants in containers)
 ```
 
@@ -26,7 +26,7 @@ tenants/<tenant_id>/
 ├── connectors.json           # Data-backbone connector inventory (IoT / MES / ERP / LIMS…)
 ├── secrets.map.json          # References to secure stores (NO real secrets in git)
 └── tests/
-    └── test_tenant_config.py # Validates this tenant's config before deployment
+    └── test_<tenant>_config.py # Validates this tenant's config before deployment
 ```
 
 `config/site_topology.json` uses the **same schema** as
@@ -37,7 +37,7 @@ tenant test suite, and the core APIs / data backbone / UI configure themselves.
 ## Onboarding a new facility (checklist)
 
 1. Copy an existing tenant folder as a template:
-   `cp -r tenants/pharma_co_a tenants/<new_tenant_id>`
+   `cp -r tenants/acme_pharma tenants/<new_tenant_id>`
 2. Edit `tenant.json` (id, display name, region, tier).
 3. Edit `config/site_topology.json` — layers, nodes, and data-flow edges for the
    facility. Reference each instrumented node's `connector_id`.

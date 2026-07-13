@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "environment": "local",
+  "purpose": "UI and connector-state simulation",
+  "demo_health_enabled": true,
+  "companies": [
+    {
+      "company_id": "acme_pharma",
+      "tenant_id": "acme_pharma",
+      "sites": [
+        {"site_id":"acme_hyd_01","site_label":"Hyderabad Plant","health_state":"green"},
+        {"site_id":"acme_pun_02","site_label":"Pune Plant","health_state":"yellow"}
+      ]
+    },
+    {
+      "company_id": "nova_bio",
+      "tenant_id": "nova_bio",
+      "sites": [
+        {"site_id":"nova_bos_01","site_label":"Boston Biologics Campus","health_state":"red"}
+      ]
+    }
+  ]
+}

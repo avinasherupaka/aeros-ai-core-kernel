@@ -490,7 +490,8 @@ export function PlantFloorMap({ sites }: PlantFloorMapProps) {
                     fill={statusHex(node.status)}
                     stroke="#ffffff"
                     strokeWidth={1.5}
-                    className={cx(node.status !== 'green' && 'animate-breathe')}
+                    pointerEvents="none"
+                    shapeRendering="geometricPrecision"
                   />
                   
                   {/* Icon (using foreignObject for Lucide React component) */}
@@ -514,7 +515,7 @@ export function PlantFloorMap({ sites }: PlantFloorMapProps) {
                       height={22}
                     >
                       <div
-                        className="flex items-center gap-1 rounded-full border px-1.5 h-[22px] w-fit max-w-full"
+                        className="flex h-[22px] w-full min-w-0 items-center gap-1 overflow-hidden rounded-full border px-1.5"
                         style={{
                           backgroundColor: `${sc.hex}14`,
                           borderColor: `${sc.hex}55`,
@@ -523,7 +524,7 @@ export function PlantFloorMap({ sites }: PlantFloorMapProps) {
                       >
                         <Plug size={11} color={sc.hex} strokeWidth={2.25} />
                         <span
-                          className="text-[9px] font-bold uppercase tracking-wide truncate"
+                          className="min-w-0 truncate text-[9px] font-bold uppercase tracking-wide"
                           style={{ color: sc.hex }}
                         >
                           Aeros
